@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -13,10 +13,11 @@ import {
   User, 
   Pill,
   AlertTriangle,
-  CheckCircle,
-  ArrowLeft
+  ArrowLeft,
+  LogOut
 } from 'lucide-react'
 import Link from 'next/link'
+import { AuthGuard, useAuth } from '@/components/auth/auth-guard'
 
 interface Patient {
   id: string
@@ -38,6 +39,8 @@ interface Drug {
 }
 
 function NewPrescriptionContent() {
+  const { user } = useAuth()
+  const router = useRouter()
   const searchParams = useSearchParams()
   const preselectedPatientId = searchParams.get('patientId')
 
@@ -160,7 +163,14 @@ function NewPrescriptionContent() {
 
   const allergyWarning = checkAllergyInteraction()
 
+  async function handleLogout() {
+    await fetch('/api/auth/logout', { method: 'POST' })
+    router.push('/login')
+    router.refresh()
+  }
+
   return (
+    <AuthGuard>
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
@@ -170,6 +180,16 @@ function NewPrescriptionContent() {
               <ArrowLeft className="h-4 w-4" />
             </Link>
             <h1 className="text-xl font-bold text-slate-800">New Prescription</h1>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="text-right">
+              <p className="text-sm font-medium text-slate-800">{user?.name}</p>
+              <p className="text-xs text-slate-500">{user?.role}</p>
+            </div>
+            <Button variant="outline" size="sm" onClick={handleLogout}>
+              <LogOut className="h-4 w-4 mr-1" />
+              Logout
+            </Button>
           </div>
           
           {/* Progress Steps */}
@@ -451,6 +471,7 @@ function NewPrescriptionContent() {
         )}
       </main>
     </div>
+    </AuthGuard>
   )
 }
 

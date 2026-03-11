@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -12,6 +12,33 @@ export default function LoginPage() {
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [checking, setChecking] = useState(true)
+
+  useEffect(() => {
+    async function checkSetup() {
+      try {
+        const res = await fetch('/api/auth/check-setup')
+        const data = await res.json()
+        
+        if (!data.hasUsers) {
+          router.push('/setup')
+          return
+        }
+
+        // Check if already logged in
+        const authRes = await fetch('/api/auth/me')
+        if (authRes.ok) {
+          router.push('/')
+          return
+        }
+      } catch (err) {
+        console.error('Setup check failed:', err)
+      } finally {
+        setChecking(false)
+      }
+    }
+    checkSetup()
+  }, [router])
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -41,6 +68,14 @@ export default function LoginPage() {
     }
   }
 
+  if (checking) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-white" />
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center p-4">
       <Card className="w-full max-w-md shadow-2xl">
@@ -68,7 +103,7 @@ export default function LoginPage() {
                 id="email"
                 name="email"
                 type="email"
-                placeholder="pharmacist@pharmaflow.com"
+                placeholder="Enter your email"
                 required
                 disabled={loading}
               />
@@ -101,11 +136,6 @@ export default function LoginPage() {
               )}
             </Button>
           </form>
-
-          <div className="mt-6 pt-6 border-t text-center text-sm text-slate-500">
-            <p>Demo credentials:</p>
-            <p className="font-mono text-xs mt-1">admin@pharmaflow.com / admin123</p>
-          </div>
         </CardContent>
       </Card>
     </div>

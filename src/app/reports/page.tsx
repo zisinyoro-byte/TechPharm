@@ -18,8 +18,11 @@ import {
   Line,
   Legend
 } from 'recharts'
-import { BarChart3, TrendingUp, Package, DollarSign } from 'lucide-react'
+import { BarChart3, TrendingUp, Package, DollarSign, LogOut } from 'lucide-react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { Button } from '@/components/ui/button'
+import { AuthGuard, useAuth } from '@/components/auth/auth-guard'
 
 interface WeeklyStat {
   date: string
@@ -33,9 +36,17 @@ interface TopDrug {
 }
 
 export default function ReportsPage() {
+  const { user } = useAuth()
+  const router = useRouter()
   const [weeklyStats, setWeeklyStats] = useState<WeeklyStat[]>([])
   const [topDrugs, setTopDrugs] = useState<TopDrug[]>([])
   const [loading, setLoading] = useState(true)
+
+  async function handleLogout() {
+    await fetch('/api/auth/logout', { method: 'POST' })
+    router.push('/login')
+    router.refresh()
+  }
 
   useEffect(() => {
     fetchReportData()
@@ -67,27 +78,40 @@ export default function ReportsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      {/* Header */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link href="/" className="flex items-center gap-2 text-slate-600 hover:text-blue-600">
-              <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-sm">Rx</span>
+    <AuthGuard>
+      <div className="min-h-screen bg-slate-50">
+        {/* Header */}
+        <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
+          <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Link href="/" className="flex items-center gap-2 text-slate-600 hover:text-blue-600">
+                <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center">
+                  <span className="text-white font-bold text-sm">Rx</span>
+                </div>
+                <span className="font-semibold">PharmaFlow</span>
+              </Link>
+              <span className="text-slate-300">|</span>
+              <h1 className="text-xl font-bold text-slate-800">Reports & Analytics</h1>
+            </div>
+            <div className="flex items-center gap-4">
+              <nav className="flex items-center gap-4">
+                <Link href="/prescriptions/new" className="text-slate-600 hover:text-blue-600 transition">New Rx</Link>
+                <Link href="/patients" className="text-slate-600 hover:text-blue-600 transition">Patients</Link>
+                <Link href="/inventory" className="text-slate-600 hover:text-blue-600 transition">Inventory</Link>
+              </nav>
+              <div className="flex items-center gap-3 border-l pl-4">
+                <div className="text-right">
+                  <p className="text-sm font-medium text-slate-800">{user?.name}</p>
+                  <p className="text-xs text-slate-500">{user?.role}</p>
+                </div>
+                <Button variant="outline" size="sm" onClick={handleLogout}>
+                  <LogOut className="h-4 w-4 mr-1" />
+                  Logout
+                </Button>
               </div>
-              <span className="font-semibold">PharmaFlow</span>
-            </Link>
-            <span className="text-slate-300">|</span>
-            <h1 className="text-xl font-bold text-slate-800">Reports & Analytics</h1>
+            </div>
           </div>
-          <nav className="flex items-center gap-4">
-            <Link href="/prescriptions/new" className="text-slate-600 hover:text-blue-600 transition">New Rx</Link>
-            <Link href="/patients" className="text-slate-600 hover:text-blue-600 transition">Patients</Link>
-            <Link href="/inventory" className="text-slate-600 hover:text-blue-600 transition">Inventory</Link>
-          </nav>
-        </div>
-      </header>
+        </header>
 
       <main className="max-w-7xl mx-auto px-4 py-6">
         {loading ? (
@@ -320,5 +344,6 @@ export default function ReportsPage() {
         )}
       </main>
     </div>
+    </AuthGuard>
   )
 }

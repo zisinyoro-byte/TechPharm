@@ -8,13 +8,11 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { 
   ShoppingCart, 
   Search, 
   Plus, 
   Minus, 
-  Trash2,
   ArrowLeft,
   DollarSign,
   CreditCard,
@@ -23,9 +21,11 @@ import {
   Check,
   X,
   Package,
-  AlertCircle
+  LogOut
 } from 'lucide-react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { AuthGuard, useAuth } from '@/components/auth/auth-guard'
 
 interface Drug {
   id: string
@@ -45,6 +45,8 @@ interface CartItem extends Drug {
 }
 
 export default function POSPage() {
+  const { user } = useAuth()
+  const router = useRouter()
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<Drug[]>([])
   const [cart, setCart] = useState<CartItem[]>([])
@@ -54,6 +56,12 @@ export default function POSPage() {
   const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'CARD'>('CASH')
   const [amountPaid, setAmountPaid] = useState('')
   const [receipt, setReceipt] = useState<any>(null)
+
+  async function handleLogout() {
+    await fetch('/api/auth/logout', { method: 'POST' })
+    router.push('/login')
+    router.refresh()
+  }
 
   // Calculate totals
   const subtotal = cart.reduce((sum, item) => sum + item.subtotal, 0)
@@ -180,26 +188,39 @@ export default function POSPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      {/* Header */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link href="/" className="flex items-center gap-2 text-slate-600 hover:text-blue-600">
-              <ArrowLeft className="h-4 w-4" />
-            </Link>
-            <div className="flex items-center gap-2">
-              <ShoppingCart className="h-6 w-6 text-green-600" />
-              <h1 className="text-xl font-bold text-slate-800">Point of Sale</h1>
+    <AuthGuard>
+      <div className="min-h-screen bg-slate-50">
+        {/* Header */}
+        <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
+          <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Link href="/" className="flex items-center gap-2 text-slate-600 hover:text-blue-600">
+                <ArrowLeft className="h-4 w-4" />
+              </Link>
+              <div className="flex items-center gap-2">
+                <ShoppingCart className="h-6 w-6 text-green-600" />
+                <h1 className="text-xl font-bold text-slate-800">Point of Sale</h1>
+              </div>
+            </div>
+            <div className="flex items-center gap-4">
+              <nav className="flex items-center gap-4">
+                <Link href="/" className="text-slate-600 hover:text-blue-600 transition">Dashboard</Link>
+                <Link href="/patients" className="text-slate-600 hover:text-blue-600 transition">Patients</Link>
+                <Link href="/inventory" className="text-slate-600 hover:text-blue-600 transition">Inventory</Link>
+              </nav>
+              <div className="flex items-center gap-3 border-l pl-4">
+                <div className="text-right">
+                  <p className="text-sm font-medium text-slate-800">{user?.name}</p>
+                  <p className="text-xs text-slate-500">{user?.role}</p>
+                </div>
+                <Button variant="outline" size="sm" onClick={handleLogout}>
+                  <LogOut className="h-4 w-4 mr-1" />
+                  Logout
+                </Button>
+              </div>
             </div>
           </div>
-          <nav className="flex items-center gap-4">
-            <Link href="/" className="text-slate-600 hover:text-blue-600 transition">Dashboard</Link>
-            <Link href="/patients" className="text-slate-600 hover:text-blue-600 transition">Patients</Link>
-            <Link href="/inventory" className="text-slate-600 hover:text-blue-600 transition">Inventory</Link>
-          </nav>
-        </div>
-      </header>
+        </header>
 
       <main className="max-w-7xl mx-auto px-4 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -490,5 +511,6 @@ export default function POSPage() {
         </div>
       </main>
     </div>
+    </AuthGuard>
   )
 }

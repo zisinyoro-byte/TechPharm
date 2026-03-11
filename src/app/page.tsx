@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -13,7 +14,9 @@ import {
   AlertTriangle,
   AlertCircle,
   ArrowRight,
-  Plus
+  Plus,
+  LogOut,
+  ShoppingCart
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -60,6 +63,13 @@ interface WorkflowQueues {
   verify: Prescription[]
 }
 
+interface CurrentUser {
+  id: string
+  name: string
+  email: string
+  role: string
+}
+
 // Status configuration
 const statusConfig: Record<string, { label: string; color: string; nextStatus: string; bgColor: string }> = {
   QUEUE: { label: 'Queue', color: 'text-slate-600', nextStatus: 'ENTRY', bgColor: 'bg-slate-100' },
@@ -69,14 +79,50 @@ const statusConfig: Record<string, { label: string; color: string; nextStatus: s
 }
 
 export default function Dashboard() {
+  const router = useRouter()
   const [stats, setStats] = useState<Stats | null>(null)
   const [queues, setQueues] = useState<WorkflowQueues | null>(null)
   const [loading, setLoading] = useState(true)
   const [movingRx, setMovingRx] = useState<string | null>(null)
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
 
   useEffect(() => {
-    fetchData()
-  }, [])
+    checkAuth()
+  }, [router])
+
+  async function checkAuth() {
+    try {
+      // First check if setup is needed
+      const setupRes = await fetch('/api/auth/check-setup')
+      const setupData = await setupRes.json()
+      
+      if (!setupData.hasUsers) {
+        router.push('/setup')
+        return
+      }
+
+      // Check if logged in
+      const authRes = await fetch('/api/auth/me')
+      if (!authRes.ok) {
+        router.push('/login')
+        return
+      }
+      
+      const userData = await authRes.json()
+      setCurrentUser(userData.user)
+      
+      // Fetch dashboard data
+      await fetchData()
+    } catch (error) {
+      router.push('/login')
+    }
+  }
+
+  async function handleLogout() {
+    await fetch('/api/auth/logout', { method: 'POST' })
+    router.push('/login')
+    router.refresh()
+  }
 
   async function fetchData() {
     try {
@@ -143,10 +189,27 @@ export default function Dashboard() {
                 New Rx
               </Button>
             </Link>
+            <Link href="/pos" className="text-slate-600 hover:text-blue-600 transition flex items-center gap-1">
+              <ShoppingCart className="h-4 w-4" />
+              POS
+            </Link>
             <Link href="/patients" className="text-slate-600 hover:text-blue-600 transition">Patients</Link>
             <Link href="/inventory" className="text-slate-600 hover:text-blue-600 transition">Inventory</Link>
             <Link href="/reports" className="text-slate-600 hover:text-blue-600 transition">Reports</Link>
+            {currentUser?.role === 'ADMIN' && (
+              <Link href="/users" className="text-slate-600 hover:text-blue-600 transition">Users</Link>
+            )}
           </nav>
+          <div className="flex items-center gap-3">
+            <div className="text-right">
+              <p className="text-sm font-medium text-slate-800">{currentUser?.name}</p>
+              <p className="text-xs text-slate-500">{currentUser?.role}</p>
+            </div>
+            <Button variant="outline" size="sm" onClick={handleLogout}>
+              <LogOut className="h-4 w-4 mr-1" />
+              Logout
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -227,7 +290,23 @@ export default function Dashboard() {
         </div>
 
         {/* Quick Actions */}
-        <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="mt-8 grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card className="hover:shadow-md transition cursor-pointer">
+            <Link href="/pos">
+              <CardContent className="p-6">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center">
+                    <ShoppingCart className="h-6 w-6 text-emerald-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-slate-800">Point of Sale</h3>
+                    <p className="text-sm text-slate-500">Process transactions</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Link>
+          </Card>
+
           <Card className="hover:shadow-md transition cursor-pointer">
             <Link href="/patients">
               <CardContent className="p-6">
