@@ -1,5 +1,6 @@
 import { config } from 'dotenv'
 import { resolve } from 'path'
+import { createHash } from 'crypto'
 
 // Load .env from the project root
 config({ path: resolve(__dirname, '../.env') })
@@ -10,15 +11,38 @@ import { PrismaClient, Role, RxStatus } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
+// Password hashing (must match auth.ts)
+function hashPassword(password: string): string {
+  return createHash('sha256').update(password + 'techpharm_salt').digest('hex')
+}
+
 async function main() {
   console.log('🌱 Starting seed...')
 
-  // Create Users
+  // Create Admin User with password
+  const admin = await prisma.user.upsert({
+    where: { email: 'admin@techpharm.com' },
+    update: {
+      password: hashPassword('admin123'),
+    },
+    create: {
+      email: 'admin@techpharm.com',
+      password: hashPassword('admin123'),
+      name: 'Admin User',
+      role: Role.ADMIN,
+      phone: '555-0100',
+    },
+  })
+
+  // Create Users with passwords
   const pharmacist = await prisma.user.upsert({
     where: { email: 'pharmacist@techpharm.com' },
-    update: {},
+    update: {
+      password: hashPassword('pharm123'),
+    },
     create: {
       email: 'pharmacist@techpharm.com',
+      password: hashPassword('pharm123'),
       name: 'Dr. Sarah Johnson',
       role: Role.PHARMACIST,
       phone: '555-0101',
@@ -27,16 +51,19 @@ async function main() {
 
   const technician = await prisma.user.upsert({
     where: { email: 'tech@techpharm.com' },
-    update: {},
+    update: {
+      password: hashPassword('tech123'),
+    },
     create: {
       email: 'tech@techpharm.com',
+      password: hashPassword('tech123'),
       name: 'Mike Chen',
       role: Role.TECHNICIAN,
       phone: '555-0102',
     },
   })
 
-  console.log('✅ Created users')
+  console.log('✅ Created users with passwords')
 
   // Create Sample Patients
   const patients = await Promise.all([
