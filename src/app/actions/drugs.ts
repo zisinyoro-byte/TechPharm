@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { InventoryAction } from '@prisma/client'
 
 export async function getDrugs(search?: string, lowStock = false) {
-  const where: any = {}
+  const where: any = { isActive: true }
 
   if (search) {
     where.OR = [
@@ -22,7 +22,7 @@ export async function getDrugs(search?: string, lowStock = false) {
   }
 
   return db.drug.findMany({
-    where: { isActive: true, ...where },
+    where,
     orderBy: { name: 'asc' },
   })
 }
@@ -97,6 +97,7 @@ export async function adjustStock(drugId: string, quantity: number, type: Invent
       newStock = previousStock + quantity
       break
     case 'DISPENSE':
+    case 'SALE':
     case 'RETURN':
     case 'EXPIRED':
     case 'DAMAGE':
@@ -151,4 +152,32 @@ export async function getInventoryStats() {
     lowStockCount,
     outOfStockCount,
   }
+}
+
+// Search drugs for POS
+export async function searchDrugsForPOS(query: string) {
+  return db.drug.findMany({
+    where: {
+      isActive: true,
+      stock: { gt: 0 },
+      OR: [
+        { name: { contains: query, mode: 'insensitive' } },
+        { genericName: { contains: query, mode: 'insensitive' } },
+        { ndc: { contains: query } },
+        { barcode: { contains: query } },
+      ],
+    },
+    take: 20,
+    select: {
+      id: true,
+      ndc: true,
+      name: true,
+      genericName: true,
+      strength: true,
+      form: true,
+      price: true,
+      stock: true,
+      controlled: true,
+    },
+  })
 }

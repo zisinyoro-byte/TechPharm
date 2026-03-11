@@ -13,21 +13,37 @@ datasource db {
 
 // User Management (Pharmacists, Technicians, Admin)
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String
-  role      Role     @default(PHARMACIST)
-  avatar    String?
-  phone     String?
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(cuid())
+  email        String   @unique
+  password     String
+  name         String
+  role         Role     @default(PHARMACIST)
+  avatar       String?
+  phone        String?
+  active       Boolean  @default(true)
+  lastLogin    DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  sessions     Session[]
+  sales        Sale[]
+  prescriptions Prescription[]
 }
 
 enum Role {
   ADMIN
   PHARMACIST
   TECHNICIAN
+  CASHIER
+}
+
+// Session for authentication
+model Session {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token        String   @unique
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
 }
 
 // Patient Demographics
@@ -50,6 +66,7 @@ model Patient {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   prescriptions Prescription[]
+  sales        Sale[]
 }
 
 // Drug Catalog (Formulary)
@@ -74,6 +91,7 @@ model Drug {
   updatedAt       DateTime @updatedAt
   prescriptions   Prescription[]
   inventoryLogs   InventoryLog[]
+  saleItems       SaleItem[]
 }
 
 // Prescriber (Doctors, NPs, PAs)
@@ -124,6 +142,7 @@ model Prescription {
   prescriberId  String?
   prescriber    Prescriber? @relation(fields: [prescriberId], references: [id])
   filledById    String?
+  filledBy      User?    @relation(fields: [filledById], references: [id])
   verifiedById  String?
 }
 
@@ -135,6 +154,58 @@ enum RxStatus {
   COMPLETE   // Filled and verified
   CANCELLED  // Cancelled
   ON_HOLD    // On hold for some reason
+}
+
+// POS Sales
+model Sale {
+  id              String   @id @default(cuid())
+  invoiceNumber   String   @unique
+  subtotal        Decimal  @default(0)
+  tax             Decimal  @default(0)
+  discount        Decimal  @default(0)
+  total           Decimal  @default(0)
+  paymentMethod   PaymentMethod
+  paymentStatus   PaymentStatus @default(PENDING)
+  amountPaid      Decimal  @default(0)
+  change          Decimal  @default(0)
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  patientId       String?
+  patient         Patient? @relation(fields: [patientId], references: [id])
+  cashierId       String
+  cashier         User     @relation(fields: [cashierId], references: [id])
+  items           SaleItem[]
+}
+
+model SaleItem {
+  id              String   @id @default(cuid())
+  quantity        Int
+  unitPrice       Decimal
+  discount        Decimal  @default(0)
+  subtotal        Decimal
+  createdAt       DateTime @default(now())
+  
+  saleId          String
+  sale            Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  drugId          String
+  drug            Drug     @relation(fields: [drugId], references: [id])
+  prescriptionId  String?
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  INSURANCE
+  MIXED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  REFUNDED
+  PARTIAL
 }
 
 // Inventory Log for tracking stock movements
@@ -160,6 +231,7 @@ enum InventoryAction {
   ADJUSTMENT // Manual adjustment
   EXPIRED    // Expired stock removed
   DAMAGE     // Damaged stock removed
+  SALE       // Sold via POS
 }
 
 // Daily Stats for Reporting
@@ -169,5 +241,6 @@ model DailyStat {
   rxCount      Int      @default(0)
   newPatients  Int      @default(0)
   revenue      Decimal  @default(0)
+  salesCount   Int      @default(0)
   createdAt    DateTime @default(now())
 }
