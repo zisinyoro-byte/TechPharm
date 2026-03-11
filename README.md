@@ -1,4 +1,4 @@
-# PharmaFlow PMS
+# TechPharm PMS
 
 A modern, installable Pharmacy Management System (PMS) combining the best features from industry-leading systems like PioneerRx, Rx30, PrimeRx, and Liberty Software.
 
@@ -54,7 +54,7 @@ A modern, installable Pharmacy Management System (PMS) combining the best featur
 1. **Clone the repository**
    ```bash
    git clone <your-repo-url>
-   cd pharmaflow
+   cd techpharm
    ```
 
 2. **Install dependencies**

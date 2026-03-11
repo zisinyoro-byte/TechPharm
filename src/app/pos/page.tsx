@@ -299,7 +299,7 @@ export default function POSPage() {
                   </div>
                   <div className="bg-white rounded-lg p-4 text-sm">
                     <div className="text-center border-b pb-2 mb-2">
-                      <p className="font-bold">PharmaFlow PMS</p>
+                      <p className="font-bold">TechPharm PMS</p>
                       <p className="text-xs text-slate-500">{new Date().toLocaleString()}</p>
                     </div>
                     {receipt.items?.map((item: any, i: number) => (

@@ -5,7 +5,7 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "PharmaFlow PMS",
+  title: "TechPharm PMS",
   description: "Modern Pharmacy Management System",
   manifest: "/manifest.json",
 };

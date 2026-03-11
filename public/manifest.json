@@ -1,6 +1,6 @@
 {
-  "name": "PharmaFlow PMS",
-  "short_name": "PharmaFlow",
+  "name": "TechPharm PMS",
+  "short_name": "TechPharm",
   "description": "Modern Pharmacy Management System - A complete solution for retail pharmacy operations including prescription workflow, patient management, and inventory tracking.",
   "start_url": "/",
   "display": "standalone",
@@ -64,7 +64,7 @@
       "sizes": "1280x720",
       "type": "image/png",
       "form_factor": "wide",
-      "label": "PharmaFlow Dashboard"
+      "label": "TechPharm Dashboard"
     }
   ],
   "shortcuts": [

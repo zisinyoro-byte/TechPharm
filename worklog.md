@@ -1,4 +1,4 @@
-# PharmaFlow PMS - Work Log
+# TechPharm PMS - Work Log
 
 ---
 ## Task ID: 1 - Database Schema

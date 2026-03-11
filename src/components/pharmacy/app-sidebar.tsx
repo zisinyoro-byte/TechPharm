@@ -64,13 +64,13 @@ export function AppSidebar() {
         <Link href="/" className="flex items-center gap-2 px-2 py-2">
           <Image
             src="/icon-192.png"
-            alt="PharmaFlow"
+            alt="TechPharm"
             width={32}
             height={32}
             className="rounded-lg"
           />
           <span className="font-bold text-lg text-sidebar-foreground">
-            PharmaFlow
+            TechPharm
           </span>
         </Link>
       </SidebarHeader>

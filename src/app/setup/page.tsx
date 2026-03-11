@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { AlertCircle, Loader2, CheckCircle } from 'lucide-react'
+import Image from 'next/image'
 
 export default function SetupPage() {
   const router = useRouter()
@@ -91,11 +92,15 @@ export default function SetupPage() {
     <div className="min-h-screen bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center p-4">
       <Card className="w-full max-w-md shadow-2xl">
         <CardHeader className="text-center space-y-4">
-          <div className="mx-auto w-16 h-16 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg">
-            <span className="text-white font-bold text-2xl">Rx</span>
-          </div>
+          <Image 
+            src="/logo.png" 
+            alt="TechPharm Logo" 
+            width={64} 
+            height={64}
+            className="mx-auto rounded-2xl shadow-lg"
+          />
           <div>
-            <CardTitle className="text-2xl">Welcome to PharmaFlow</CardTitle>
+            <CardTitle className="text-2xl">Welcome to TechPharm</CardTitle>
             <CardDescription>Create your admin account to get started</CardDescription>
           </div>
         </CardHeader>

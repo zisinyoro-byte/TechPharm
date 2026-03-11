@@ -19,6 +19,7 @@ import {
   ShoppingCart
 } from 'lucide-react'
 import Link from 'next/link'
+import Image from 'next/image'
 
 // Types
 interface Drug {
@@ -162,7 +163,7 @@ export default function Dashboard() {
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-slate-600">Loading PharmaFlow...</p>
+          <p className="mt-4 text-slate-600">Loading TechPharm...</p>
         </div>
       </div>
     )
@@ -174,11 +175,15 @@ export default function Dashboard() {
       <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-lg">Rx</span>
-            </div>
+            <Image 
+              src="/logo.png" 
+              alt="TechPharm Logo" 
+              width={40} 
+              height={40}
+              className="rounded-lg"
+            />
             <div>
-              <h1 className="text-xl font-bold text-slate-800">PharmaFlow</h1>
+              <h1 className="text-xl font-bold text-slate-800">TechPharm</h1>
               <p className="text-xs text-slate-500">Pharmacy Management System</p>
             </div>
           </div>

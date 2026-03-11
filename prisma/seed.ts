@@ -15,10 +15,10 @@ async function main() {
 
   // Create Users
   const pharmacist = await prisma.user.upsert({
-    where: { email: 'pharmacist@pharmaflow.com' },
+    where: { email: 'pharmacist@techpharm.com' },
     update: {},
     create: {
-      email: 'pharmacist@pharmaflow.com',
+      email: 'pharmacist@techpharm.com',
       name: 'Dr. Sarah Johnson',
       role: Role.PHARMACIST,
       phone: '555-0101',
@@ -26,10 +26,10 @@ async function main() {
   })
 
   const technician = await prisma.user.upsert({
-    where: { email: 'tech@pharmaflow.com' },
+    where: { email: 'tech@techpharm.com' },
     update: {},
     create: {
-      email: 'tech@pharmaflow.com',
+      email: 'tech@techpharm.com',
       name: 'Mike Chen',
       role: Role.TECHNICIAN,
       phone: '555-0102',

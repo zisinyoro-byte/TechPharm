@@ -7,7 +7,7 @@ import { Role } from '@prisma/client'
 
 // Password hashing
 function hashPassword(password: string): string {
-  return createHash('sha256').update(password + 'pharmaflow_salt').digest('hex')
+  return createHash('sha256').update(password + 'techpharm_salt').digest('hex')
 }
 
 // Generate session token
