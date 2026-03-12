@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { getAuthUser } from '@/lib/auth-api';
+import { canRead, canEdit, canDeleteRecord } from '@/lib/permissions';
+import { revalidatePath } from 'next/cache';
 
 // GET - Get a single drug
 export async function GET(
@@ -7,6 +10,16 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getAuthUser();
+    
+    // Check read permission
+    if (!canRead(user, 'drug')) {
+      return NextResponse.json(
+        { error: 'Forbidden: You do not have permission to view drugs' },
+        { status: 403 }
+      );
+    }
+
     const { id } = await params;
     
     const drug = await db.drug.findUnique({
@@ -26,6 +39,9 @@ export async function GET(
           orderBy: { createdAt: 'desc' },
           take: 10,
         },
+        createdBy: {
+          select: { id: true, name: true, role: true }
+        }
       },
     });
 
@@ -52,7 +68,18 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getAuthUser();
     const { id } = await params;
+    
+    // Check edit permission (must be admin or owner with write access)
+    const hasEditPermission = await canEdit(user, 'drug', id);
+    if (!hasEditPermission) {
+      return NextResponse.json(
+        { error: 'Forbidden: You can only edit drugs you created, or you need admin privileges' },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     
     const drug = await db.drug.update({
@@ -66,18 +93,22 @@ export async function PUT(
         manufacturer: body.manufacturer,
         price: body.price,
         cost: body.cost,
-        stockQuantity: body.stockQuantity,
+        stock: body.stockQuantity ?? body.stock,
         reorderLevel: body.reorderLevel,
         maxStock: body.maxStock,
         controlled: body.controlled,
         schedule: body.schedule,
-        deaClass: body.deaClass,
-        requiresRefrigeration: body.requiresRefrigeration,
         barcode: body.barcode,
-        active: body.active,
+        isActive: body.active ?? body.isActive,
       },
+      include: {
+        createdBy: {
+          select: { id: true, name: true, role: true }
+        }
+      }
     });
 
+    revalidatePath('/inventory');
     return NextResponse.json(drug);
   } catch (error) {
     console.error('Error updating drug:', error);
@@ -94,14 +125,25 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getAuthUser();
     const { id } = await params;
     
+    // Check delete permission (must be admin or owner with delete access)
+    const hasDeletePermission = await canDeleteRecord(user, 'drug', id);
+    if (!hasDeletePermission) {
+      return NextResponse.json(
+        { error: 'Forbidden: You can only delete drugs you created, or you need admin privileges' },
+        { status: 403 }
+      );
+    }
+
     // Soft delete by setting active to false
     const drug = await db.drug.update({
       where: { id },
-      data: { active: false },
+      data: { isActive: false },
     });
 
+    revalidatePath('/inventory');
     return NextResponse.json(drug);
   } catch (error) {
     console.error('Error deleting drug:', error);

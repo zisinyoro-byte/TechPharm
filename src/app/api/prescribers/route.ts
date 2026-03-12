@@ -1,9 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { getAuthUser } from '@/lib/auth-api';
+import { canRead, canWrite } from '@/lib/permissions';
 
 // GET - List all prescribers with search
 export async function GET(request: NextRequest) {
   try {
+    const user = await getAuthUser();
+    
+    // Check read permission
+    if (!canRead(user, 'prescriber')) {
+      return NextResponse.json(
+        { error: 'Forbidden: You do not have permission to view prescribers' },
+        { status: 403 }
+      );
+    }
+
     const searchParams = request.nextUrl.searchParams;
     const search = searchParams.get('search') || '';
     
@@ -14,13 +26,17 @@ export async function GET(request: NextRequest) {
         { firstName: { contains: search, mode: 'insensitive' } },
         { lastName: { contains: search, mode: 'insensitive' } },
         { npi: { contains: search } },
-        { practiceName: { contains: search, mode: 'insensitive' } },
       ];
     }
     
     const prescribers = await db.prescriber.findMany({
       where,
       orderBy: { lastName: 'asc' },
+      include: {
+        createdBy: {
+          select: { id: true, name: true, role: true }
+        }
+      }
     });
 
     return NextResponse.json(prescribers);
@@ -36,6 +52,16 @@ export async function GET(request: NextRequest) {
 // POST - Create a new prescriber
 export async function POST(request: NextRequest) {
   try {
+    const user = await getAuthUser();
+    
+    // Check write permission
+    if (!canWrite(user, 'prescriber')) {
+      return NextResponse.json(
+        { error: 'Forbidden: You do not have permission to create prescribers' },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     
     const prescriber = await db.prescriber.create({
@@ -47,13 +73,19 @@ export async function POST(request: NextRequest) {
         phone: body.phone,
         fax: body.fax,
         email: body.email,
-        practiceName: body.practiceName,
+        specialty: body.specialty,
+        degree: body.degree,
         address: body.address,
         city: body.city,
         state: body.state,
-        zipCode: body.zipCode,
-        specialty: body.specialty,
+        zip: body.zipCode || body.zip,
+        createdById: user?.id, // Track who created this record
       },
+      include: {
+        createdBy: {
+          select: { id: true, name: true, role: true }
+        }
+      }
     });
 
     return NextResponse.json(prescriber, { status: 201 });
