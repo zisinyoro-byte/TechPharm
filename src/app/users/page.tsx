@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -18,7 +18,8 @@ import {
   User,
   Clock,
   Phone,
-  LogOut
+  LogOut,
+  AlertCircle
 } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -43,13 +44,14 @@ const roleColors: Record<string, string> = {
 }
 
 export default function UsersPage() {
-  const { user } = useAuth()
+  const { user: currentUser } = useAuth()
   const router = useRouter()
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<User | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   async function handleLogout() {
     await fetch('/api/auth/logout', { method: 'POST' })
@@ -65,7 +67,7 @@ export default function UsersPage() {
     try {
       const res = await fetch('/api/users')
       const data = await res.json()
-      setUsers(data)
+      setUsers(Array.isArray(data) ? data : [])
     } catch (error) {
       console.error('Failed to fetch users:', error)
     } finally {
@@ -76,26 +78,29 @@ export default function UsersPage() {
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setSubmitting(true)
+    setError(null)
 
     const formData = new FormData(e.currentTarget)
 
     try {
-      if (editingUser) {
-        await fetch(`/api/users/${editingUser.id}`, {
-          method: 'PUT',
-          body: formData,
-        })
-      } else {
-        await fetch('/api/users', {
-          method: 'POST',
-          body: formData,
-        })
+      const res = await fetch(editingUser ? `/api/users/${editingUser.id}` : '/api/users', {
+        method: editingUser ? 'PUT' : 'POST',
+        body: formData,
+      })
+
+      const data = await res.json()
+
+      if (!res.ok || data.error) {
+        setError(data.error || 'Failed to save user')
+        return
       }
+
       setDialogOpen(false)
       setEditingUser(null)
       fetchUsers()
     } catch (error) {
       console.error('Failed to save user:', error)
+      setError('Failed to save user. Please try again.')
     } finally {
       setSubmitting(false)
     }
@@ -105,20 +110,27 @@ export default function UsersPage() {
     if (!confirm('Are you sure you want to delete this user?')) return
 
     try {
-      await fetch(`/api/users/${id}`, { method: 'DELETE' })
-      fetchUsers()
+      const res = await fetch(`/api/users/${id}`, { method: 'DELETE' })
+      if (res.ok) {
+        fetchUsers()
+      } else {
+        alert('Failed to delete user')
+      }
     } catch (error) {
       console.error('Failed to delete user:', error)
+      alert('Failed to delete user')
     }
   }
 
   function openEdit(user: User) {
     setEditingUser(user)
+    setError(null)
     setDialogOpen(true)
   }
 
   function openNew() {
     setEditingUser(null)
+    setError(null)
     setDialogOpen(true)
   }
 
@@ -145,8 +157,8 @@ export default function UsersPage() {
               </nav>
               <div className="flex items-center gap-3 border-l pl-4">
                 <div className="text-right">
-                  <p className="text-sm font-medium text-slate-800">{user?.name}</p>
-                  <p className="text-xs text-slate-500">{user?.role}</p>
+                  <p className="text-sm font-medium text-slate-800">{currentUser?.name}</p>
+                  <p className="text-xs text-slate-500">{currentUser?.role}</p>
                 </div>
                 <Button variant="outline" size="sm" onClick={handleLogout}>
                   <LogOut className="h-4 w-4 mr-1" />
@@ -176,6 +188,12 @@ export default function UsersPage() {
                 <DialogTitle>{editingUser ? 'Edit User' : 'Add New User'}</DialogTitle>
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4 mt-4">
+                {error && (
+                  <div className="flex items-center gap-2 p-3 bg-red-50 text-red-700 rounded-lg text-sm">
+                    <AlertCircle className="h-4 w-4" />
+                    {error}
+                  </div>
+                )}
                 <div className="space-y-2">
                   <Label htmlFor="name">Full Name *</Label>
                   <Input
@@ -204,6 +222,7 @@ export default function UsersPage() {
                     name="password"
                     type="password"
                     required={!editingUser}
+                    placeholder={editingUser ? '••••••••' : ''}
                   />
                 </div>
                 <div className="space-y-2">
