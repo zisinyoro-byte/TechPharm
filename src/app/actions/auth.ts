@@ -129,26 +129,35 @@ export async function createUser(formData: FormData) {
   const role = formData.get('role') as Role
   const phone = formData.get('phone') as string | null
 
+  console.log('createUser called with:', { email, name, role, phone, hasPassword: !!password })
+
   if (!email || !password || !name) {
+    console.log('Missing required fields:', { email: !!email, password: !!password, name: !!name })
     return { error: 'Required fields missing' }
   }
 
   const existing = await db.user.findUnique({ where: { email } })
   if (existing) {
+    console.log('Email already exists:', email)
     return { error: 'Email already exists' }
   }
 
-  const user = await db.user.create({
-    data: {
-      email,
-      password: hashPassword(password),
-      name,
-      role: role || Role.TECHNICIAN,
-      phone,
-    },
-  })
-
-  return { success: true, user }
+  try {
+    const user = await db.user.create({
+      data: {
+        email,
+        password: hashPassword(password),
+        name,
+        role: role || Role.TECHNICIAN,
+        phone,
+      },
+    })
+    console.log('User created successfully:', user.email)
+    return { success: true, user }
+  } catch (error) {
+    console.error('Database error creating user:', error)
+    return { error: 'Failed to create user in database' }
+  }
 }
 
 // Update user
