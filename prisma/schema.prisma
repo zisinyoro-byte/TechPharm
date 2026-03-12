@@ -6,8 +6,9 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl  = env("DIRECT_URL")
 }
 
 // User Management (Pharmacists, Technicians, Admin)
@@ -58,7 +59,7 @@ model Patient {
   city         String?
   state        String?
   zip          String?
-  allergies    String   // JSON array stored as string
+  allergies    String[]
   insuranceId  String?
   insuranceName String?
   notes        String?
