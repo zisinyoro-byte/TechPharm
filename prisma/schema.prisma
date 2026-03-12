@@ -1,0 +1,246 @@
+// This is your Prisma schema file for PharmaFlow PMS
+// Pharmacy Management System - Neon PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// User Management (Pharmacists, Technicians, Admin)
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  password     String
+  name         String
+  role         Role     @default(PHARMACIST)
+  avatar       String?
+  phone        String?
+  active       Boolean  @default(true)
+  lastLogin    DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  sessions     Session[]
+  sales        Sale[]
+  prescriptions Prescription[]
+}
+
+enum Role {
+  ADMIN
+  PHARMACIST
+  TECHNICIAN
+  CASHIER
+}
+
+// Session for authentication
+model Session {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token        String   @unique
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+}
+
+// Patient Demographics
+model Patient {
+  id           String   @id @default(cuid())
+  firstName    String
+  lastName     String
+  dob          DateTime
+  gender       String?
+  phone        String?
+  email        String?
+  address      String?
+  city         String?
+  state        String?
+  zip          String?
+  allergies    String[]
+  insuranceId  String?
+  insuranceName String?
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  prescriptions Prescription[]
+  sales        Sale[]
+}
+
+// Drug Catalog (Formulary)
+model Drug {
+  id              String   @id @default(cuid())
+  ndc             String   @unique // National Drug Code
+  name            String
+  genericName     String?
+  strength        String
+  form            String   // Tablet, Capsule, Liquid, Injection, etc.
+  manufacturer    String?
+  price           Decimal  @default(0)
+  cost            Decimal  @default(0)
+  stock           Int      @default(0)
+  reorderLevel    Int      @default(10)
+  maxStock        Int      @default(100)
+  controlled      Boolean  @default(false)
+  schedule        String?  // II, III, IV, V for controlled substances
+  barcode         String?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  prescriptions   Prescription[]
+  inventoryLogs   InventoryLog[]
+  saleItems       SaleItem[]
+}
+
+// Prescriber (Doctors, NPs, PAs)
+model Prescriber {
+  id           String   @id @default(cuid())
+  npi          String   @unique // National Provider Identifier
+  firstName    String
+  lastName     String
+  degree       String?  // MD, DO, NP, PA, etc.
+  specialty    String?
+  phone        String?
+  fax          String?
+  email        String?
+  address      String?
+  city         String?
+  state        String?
+  zip          String?
+  deaNumber    String?
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  prescriptions Prescription[]
+}
+
+// Prescription & Workflow (The Core)
+model Prescription {
+  id            String   @id @default(cuid())
+  rxNumber      String   @unique
+  status        RxStatus @default(QUEUE)
+  quantity      Decimal
+  daysSupply    Int      @default(30)
+  directions    String
+  refills       Int      @default(0)
+  refillsRemaining Int   @default(0)
+  filledDate    DateTime?
+  dispensed     Boolean  @default(false)
+  copay         Decimal  @default(0)
+  priceCharged  Decimal  @default(0)
+  notes         String?
+  dursChecked   Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  patientId     String
+  patient       Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  drugId        String
+  drug          Drug     @relation(fields: [drugId], references: [id])
+  prescriberId  String?
+  prescriber    Prescriber? @relation(fields: [prescriberId], references: [id])
+  filledById    String?
+  filledBy      User?    @relation(fields: [filledById], references: [id])
+  verifiedById  String?
+}
+
+enum RxStatus {
+  QUEUE      // New prescription waiting to be processed
+  ENTRY      // Data entry in progress
+  FILL       // Ready to fill/dispense
+  VERIFY     // Waiting for pharmacist verification
+  COMPLETE   // Filled and verified
+  CANCELLED  // Cancelled
+  ON_HOLD    // On hold for some reason
+}
+
+// POS Sales
+model Sale {
+  id              String   @id @default(cuid())
+  invoiceNumber   String   @unique
+  subtotal        Decimal  @default(0)
+  tax             Decimal  @default(0)
+  discount        Decimal  @default(0)
+  total           Decimal  @default(0)
+  paymentMethod   PaymentMethod
+  paymentStatus   PaymentStatus @default(PENDING)
+  amountPaid      Decimal  @default(0)
+  change          Decimal  @default(0)
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  patientId       String?
+  patient         Patient? @relation(fields: [patientId], references: [id])
+  cashierId       String
+  cashier         User     @relation(fields: [cashierId], references: [id])
+  items           SaleItem[]
+}
+
+model SaleItem {
+  id              String   @id @default(cuid())
+  quantity        Int
+  unitPrice       Decimal
+  discount        Decimal  @default(0)
+  subtotal        Decimal
+  createdAt       DateTime @default(now())
+  
+  saleId          String
+  sale            Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  drugId          String
+  drug            Drug     @relation(fields: [drugId], references: [id])
+  prescriptionId  String?
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  INSURANCE
+  MIXED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  REFUNDED
+  PARTIAL
+}
+
+// Inventory Log for tracking stock movements
+model InventoryLog {
+  id          String   @id @default(cuid())
+  type        InventoryAction
+  quantity    Int
+  previousStock Int
+  newStock    Int
+  reason      String?
+  reference   String?  // PO number, RX number, etc.
+  createdAt   DateTime @default(now())
+  
+  drugId      String
+  drug        Drug     @relation(fields: [drugId], references: [id])
+  userId      String?
+}
+
+enum InventoryAction {
+  RECEIVE    // Stock received from supplier
+  DISPENSE   // Dispensed to patient
+  RETURN     // Returned to supplier
+  ADJUSTMENT // Manual adjustment
+  EXPIRED    // Expired stock removed
+  DAMAGE     // Damaged stock removed
+  SALE       // Sold via POS
+}
+
+// Daily Stats for Reporting
+model DailyStat {
+  id           String   @id @default(cuid())
+  date         DateTime @unique
+  rxCount      Int      @default(0)
+  newPatients  Int      @default(0)
+  revenue      Decimal  @default(0)
+  salesCount   Int      @default(0)
+  createdAt    DateTime @default(now())
+}
