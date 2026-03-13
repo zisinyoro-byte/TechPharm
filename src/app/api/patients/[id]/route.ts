@@ -57,29 +57,44 @@ export async function PUT(
       }, { status: 403 })
     }
 
+    // Get existing patient first
+    const existingPatient = await db.patient.findUnique({ where: { id } })
+    if (!existingPatient) {
+      return NextResponse.json({ error: 'Patient not found' }, { status: 404 })
+    }
+
     // Accept JSON body
     const body = await request.json()
     const allergies = body.allergies 
       ? (Array.isArray(body.allergies) ? body.allergies : body.allergies.split(',').map((a: string) => a.trim()).filter(Boolean))
-      : []
+      : existingPatient.allergies
+
+    // Handle DOB - keep existing if not provided or invalid
+    let dob = existingPatient.dob
+    if (body.dob) {
+      const parsedDate = new Date(body.dob)
+      if (!isNaN(parsedDate.getTime())) {
+        dob = parsedDate
+      }
+    }
 
     const patient = await db.patient.update({
       where: { id },
       data: {
-        firstName: body.firstName,
-        lastName: body.lastName,
-        dob: new Date(body.dob),
-        phone: body.phone || null,
-        email: body.email || null,
-        address: body.address || null,
-        city: body.city || null,
-        state: body.state || null,
-        zip: body.zip || null,
-        gender: body.gender || null,
+        firstName: body.firstName ?? existingPatient.firstName,
+        lastName: body.lastName ?? existingPatient.lastName,
+        dob,
+        phone: body.phone ?? existingPatient.phone,
+        email: body.email ?? existingPatient.email,
+        address: body.address ?? existingPatient.address,
+        city: body.city ?? existingPatient.city,
+        state: body.state ?? existingPatient.state,
+        zip: body.zip ?? existingPatient.zip,
+        gender: body.gender ?? existingPatient.gender,
         allergies,
-        insuranceId: body.insuranceId || null,
-        insuranceName: body.insuranceName || null,
-        notes: body.notes || null,
+        insuranceId: body.insuranceId ?? existingPatient.insuranceId,
+        insuranceName: body.insuranceName ?? existingPatient.insuranceName,
+        notes: body.notes ?? existingPatient.notes,
       },
       include: {
         createdBy: {
