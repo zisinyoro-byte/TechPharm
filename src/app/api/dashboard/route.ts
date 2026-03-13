@@ -1,6 +1,23 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 
+// Helper to serialize drug data (convert Decimal to number)
+function serializeDrug(drug: any) {
+  return {
+    ...drug,
+    price: Number(drug.price),
+    cost: drug.cost ? Number(drug.cost) : 0,
+  };
+}
+
+// Helper to serialize prescription data (convert Decimal fields in drug)
+function serializePrescription(prescription: any) {
+  return {
+    ...prescription,
+    drug: prescription.drug ? serializeDrug(prescription.drug) : prescription.drug,
+  };
+}
+
 // GET - Dashboard statistics
 export async function GET() {
   try {
@@ -37,19 +54,19 @@ export async function GET() {
       },
     });
 
-    const lowStockDrugs = allDrugs.filter(
-      (drug) => drug.stock <= drug.reorderLevel
-    );
+    const lowStockDrugs = allDrugs
+      .filter((drug) => drug.stock <= drug.reorderLevel)
+      .map(serializeDrug);
 
     // Get recent prescriptions
-    const recentPrescriptions = await db.prescription.findMany({
+    const recentPrescriptions = (await db.prescription.findMany({
       include: {
         patient: true,
         drug: true,
       },
       orderBy: { createdAt: 'desc' },
       take: 10,
-    });
+    })).map(serializePrescription);
 
     // Get prescriptions created today
     const today = new Date();

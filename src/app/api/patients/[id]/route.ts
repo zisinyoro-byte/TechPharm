@@ -5,13 +5,28 @@ import { getAuthUser } from '@/lib/auth-api'
 import { canRead, canEdit, canDeleteRecord, isAdmin } from '@/lib/permissions'
 import { revalidatePath } from 'next/cache'
 
+// Helper to serialize patient data (convert Decimal fields in nested drugs)
+function serializePatient(patient: any) {
+  return {
+    ...patient,
+    prescriptions: patient.prescriptions?.map((rx: any) => ({
+      ...rx,
+      drug: rx.drug ? {
+        ...rx.drug,
+        price: Number(rx.drug.price),
+        cost: Number(rx.drug.cost),
+      } : rx.drug,
+    })) || [],
+  }
+}
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await getAuthUser()
-    
+
     // Check read permission
     if (!canRead(user, 'patient')) {
       return NextResponse.json({ error: 'Forbidden: You do not have permission to view patients' }, { status: 403 })
@@ -30,11 +45,11 @@ export async function GET(
         }
       },
     })
-    
+
     if (!patient) {
       return NextResponse.json({ error: 'Patient not found' }, { status: 404 })
     }
-    return NextResponse.json(patient)
+    return NextResponse.json(serializePatient(patient))
   } catch (error) {
     console.error('Failed to fetch patient:', error)
     return NextResponse.json({ error: 'Failed to fetch patient' }, { status: 500 })

@@ -1,6 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 
+// Helper to serialize prescription data (convert Decimal fields in drug)
+function serializePrescription(prescription: any) {
+  return {
+    ...prescription,
+    drug: prescription.drug ? {
+      ...prescription.drug,
+      price: Number(prescription.drug.price),
+      cost: Number(prescription.drug.cost),
+    } : prescription.drug,
+  };
+}
+
 // GET - Get a single prescription
 export async function GET(
   request: NextRequest,
@@ -8,7 +20,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    
+
     const prescription = await db.prescription.findUnique({
       where: { id },
       include: {
@@ -26,7 +38,7 @@ export async function GET(
       );
     }
 
-    return NextResponse.json(prescription);
+    return NextResponse.json(serializePrescription(prescription));
   } catch (error) {
     console.error('Error fetching prescription:', error);
     return NextResponse.json(
@@ -111,7 +123,7 @@ export async function PUT(
       },
     });
 
-    return NextResponse.json(prescription);
+    return NextResponse.json(serializePrescription(prescription));
   } catch (error) {
     console.error('Error updating prescription:', error);
     return NextResponse.json(
