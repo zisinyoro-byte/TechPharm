@@ -8,16 +8,16 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
-import { 
-  Search, 
-  User, 
+import {
+  Search,
+  User,
   Pill,
   AlertTriangle,
   ArrowLeft,
   LogOut
 } from 'lucide-react'
 import Link from 'next/link'
-import { AuthGuard, useAuth } from '@/components/auth/auth-guard'
+import { AuthGuard } from '@/components/auth/auth-guard'
 
 interface Patient {
   id: string
@@ -38,8 +38,11 @@ interface Drug {
   controlled: boolean
 }
 
-function NewPrescriptionContent() {
-  const { user } = useAuth()
+interface NewPrescriptionContentProps {
+  user: { id: string; name: string; email: string; role: string }
+}
+
+function NewPrescriptionContent({ user }: NewPrescriptionContentProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const preselectedPatientId = searchParams.get('patientId')
@@ -170,7 +173,6 @@ function NewPrescriptionContent() {
   }
 
   return (
-    <AuthGuard>
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
@@ -183,8 +185,8 @@ function NewPrescriptionContent() {
           </div>
           <div className="flex items-center gap-3">
             <div className="text-right">
-              <p className="text-sm font-medium text-slate-800">{user?.name}</p>
-              <p className="text-xs text-slate-500">{user?.role}</p>
+              <p className="text-sm font-medium text-slate-800">{user.name}</p>
+              <p className="text-xs text-slate-500">{user.role}</p>
             </div>
             <Button variant="outline" size="sm" onClick={handleLogout}>
               <LogOut className="h-4 w-4 mr-1" />
@@ -471,14 +473,15 @@ function NewPrescriptionContent() {
         )}
       </main>
     </div>
-    </AuthGuard>
   )
 }
 
 export default function NewPrescriptionPage() {
   return (
     <Suspense fallback={<div className="min-h-screen bg-slate-50 flex items-center justify-center">Loading...</div>}>
-      <NewPrescriptionContent />
+      <AuthGuard>
+        {(user) => <NewPrescriptionContent user={user} />}
+      </AuthGuard>
     </Suspense>
   )
 }
