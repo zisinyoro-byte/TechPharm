@@ -12,7 +12,7 @@ export async function GET() {
       totalPrescribers,
     ] = await Promise.all([
       db.patient.count(),
-      db.drug.count({ where: { active: true } }),
+      db.drug.count({ where: { isActive: true } }),
       db.prescription.count(),
       db.prescriber.count({ where: { active: true } }),
     ]);
@@ -25,19 +25,20 @@ export async function GET() {
 
     // Get low stock drugs
     const allDrugs = await db.drug.findMany({
-      where: { active: true },
+      where: { isActive: true },
       select: {
         id: true,
         name: true,
         strength: true,
-        stockQuantity: true,
+        stock: true,
         reorderLevel: true,
         form: true,
+        price: true,
       },
     });
 
     const lowStockDrugs = allDrugs.filter(
-      (drug) => drug.stockQuantity <= drug.reorderLevel
+      (drug) => drug.stock <= drug.reorderLevel
     );
 
     // Get recent prescriptions
@@ -66,7 +67,7 @@ export async function GET() {
     const completedToday = await db.prescription.count({
       where: {
         status: 'COMPLETE',
-        verifiedDate: {
+        filledDate: {
           gte: today,
         },
       },
@@ -74,7 +75,7 @@ export async function GET() {
 
     // Calculate inventory value
     const inventoryValue = allDrugs.reduce(
-      (total, drug) => total + drug.stockQuantity * (drug.price || 0),
+      (total, drug) => total + drug.stock * Number(drug.price || 0),
       0
     );
 
