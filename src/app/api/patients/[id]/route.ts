@@ -56,24 +56,29 @@ export async function PUT(
       }, { status: 403 })
     }
 
-    const formData = await request.formData()
-    const allergiesStr = formData.get('allergies') as string | null
-    const allergies = allergiesStr ? allergiesStr.split(',').map(a => a.trim()).filter(Boolean) : []
+    // Accept JSON body
+    const body = await request.json()
+    const allergies = body.allergies 
+      ? (Array.isArray(body.allergies) ? body.allergies : body.allergies.split(',').map((a: string) => a.trim()).filter(Boolean))
+      : []
 
     const patient = await db.patient.update({
       where: { id },
       data: {
-        firstName: formData.get('firstName') as string,
-        lastName: formData.get('lastName') as string,
-        dob: new Date(formData.get('dob') as string),
-        phone: formData.get('phone') as string | null,
-        email: formData.get('email') as string | null,
-        address: formData.get('address') as string | null,
-        city: formData.get('city') as string | null,
-        state: formData.get('state') as string | null,
-        zip: formData.get('zip') as string | null,
-        gender: formData.get('gender') as string | null,
+        firstName: body.firstName,
+        lastName: body.lastName,
+        dob: new Date(body.dob),
+        phone: body.phone || null,
+        email: body.email || null,
+        address: body.address || null,
+        city: body.city || null,
+        state: body.state || null,
+        zip: body.zip || null,
+        gender: body.gender || null,
         allergies,
+        insuranceId: body.insuranceId || null,
+        insuranceName: body.insuranceName || null,
+        notes: body.notes || null,
       },
       include: {
         createdBy: {
@@ -86,7 +91,7 @@ export async function PUT(
     return NextResponse.json(patient)
   } catch (error) {
     console.error('Failed to update patient:', error)
-    return NextResponse.json({ error: 'Failed to update patient' }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to update patient: ' + (error instanceof Error ? error.message : String(error)) }, { status: 500 })
   }
 }
 

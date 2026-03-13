@@ -1,12 +1,13 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { 
@@ -18,7 +19,11 @@ import {
   CheckCircle,
   DollarSign,
   BarChart3,
-  LogOut
+  LogOut,
+  Edit,
+  Trash2,
+  PackagePlus,
+  Loader2
 } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -36,8 +41,12 @@ interface Drug {
   cost: number
   stock: number
   reorderLevel: number
+  maxStock: number
   controlled: boolean
   schedule: string | null
+  barcode: string | null
+  isActive: boolean
+  createdById: string | null
 }
 
 interface Stats {
@@ -58,6 +67,35 @@ export default function InventoryPage() {
   const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  
+  // Edit dialog state
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [editingDrug, setEditingDrug] = useState<Drug | null>(null)
+  const [editSubmitting, setEditSubmitting] = useState(false)
+  const [editError, setEditError] = useState<string | null>(null)
+  const [editSuccess, setEditSuccess] = useState<string | null>(null)
+  
+  // Procurement dialog state
+  const [procureDialogOpen, setProcureDialogOpen] = useState(false)
+  const [procuringDrug, setProcuringDrug] = useState<Drug | null>(null)
+  const [procureSubmitting, setProcureSubmitting] = useState(false)
+  const [procureError, setProcureError] = useState<string | null>(null)
+  const [procureSuccess, setProcureSuccess] = useState<string | null>(null)
+  
+  // Delete state
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+
+  // Check permissions
+  const canEditDrug = (drug: Drug) => {
+    return user?.role === 'ADMIN' || drug.createdById === user?.id
+  }
+  
+  const canDeleteDrug = (drug: Drug) => {
+    return user?.role === 'ADMIN' || (drug.createdById === user?.id && (user?.role === 'PHARMACIST' || user?.role === 'TECHNICIAN'))
+  }
+  
+  const canProcure = user?.role === 'ADMIN' || user?.role === 'PHARMACIST'
 
   async function handleLogout() {
     await fetch('/api/auth/logout', { method: 'POST' })
@@ -80,8 +118,8 @@ export default function InventoryPage() {
       const drugsData = await drugsRes.json()
       const lowStockData = await lowStockRes.json()
       const statsData = await statsRes.json()
-      setDrugs(drugsData)
-      setLowStockDrugs(lowStockData)
+      setDrugs(Array.isArray(drugsData) ? drugsData : [])
+      setLowStockDrugs(Array.isArray(lowStockData) ? lowStockData : [])
       setStats(statsData)
     } catch (error) {
       console.error('Failed to fetch data:', error)
@@ -97,16 +135,159 @@ export default function InventoryPage() {
     const formData = new FormData(e.currentTarget)
     
     try {
-      await fetch('/api/drugs', {
+      const res = await fetch('/api/drugs', {
         method: 'POST',
         body: formData,
       })
-      setDialogOpen(false)
-      fetchData()
+      
+      if (res.ok) {
+        setDialogOpen(false)
+        fetchData()
+      } else {
+        const data = await res.json()
+        alert(data.error || 'Failed to create drug')
+      }
     } catch (error) {
       console.error('Failed to create drug:', error)
+      alert('Failed to create drug')
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  // Edit drug handler
+  function openEditDialog(drug: Drug) {
+    setEditingDrug(drug)
+    setEditError(null)
+    setEditSuccess(null)
+    setEditDialogOpen(true)
+  }
+
+  async function handleEditSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    if (!editingDrug) return
+    
+    setEditSubmitting(true)
+    setEditError(null)
+    setEditSuccess(null)
+    
+    const formData = new FormData(e.currentTarget)
+    const body = {
+      ndc: formData.get('ndc'),
+      name: formData.get('name'),
+      genericName: formData.get('genericName') || null,
+      strength: formData.get('strength'),
+      form: formData.get('form'),
+      manufacturer: formData.get('manufacturer') || null,
+      price: parseFloat(formData.get('price') as string),
+      cost: parseFloat(formData.get('cost') as string),
+      stock: parseInt(formData.get('stock') as string),
+      reorderLevel: parseInt(formData.get('reorderLevel') as string),
+      controlled: formData.get('controlled') === 'true',
+      schedule: formData.get('schedule') || null,
+    }
+    
+    try {
+      const res = await fetch(`/api/drugs/${editingDrug.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      
+      const data = await res.json()
+      
+      if (res.ok) {
+        setEditSuccess('Drug updated successfully!')
+        fetchData()
+        setTimeout(() => {
+          setEditDialogOpen(false)
+          setEditingDrug(null)
+        }, 1000)
+      } else {
+        setEditError(data.error || 'Failed to update drug')
+      }
+    } catch (error) {
+      console.error('Failed to update drug:', error)
+      setEditError('Failed to update drug')
+    } finally {
+      setEditSubmitting(false)
+    }
+  }
+
+  // Procurement handler
+  function openProcureDialog(drug: Drug) {
+    setProcuringDrug(drug)
+    setProcureError(null)
+    setProcureSuccess(null)
+    setProcureDialogOpen(true)
+  }
+
+  async function handleProcureSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    if (!procuringDrug) return
+    
+    setProcureSubmitting(true)
+    setProcureError(null)
+    setProcureSuccess(null)
+    
+    const formData = new FormData(e.currentTarget)
+    const body = {
+      quantity: parseInt(formData.get('quantity') as string),
+      supplier: formData.get('supplier'),
+      lotNumber: formData.get('lotNumber'),
+      expiryDate: formData.get('expiryDate'),
+      costPerUnit: parseFloat(formData.get('costPerUnit') as string),
+    }
+    
+    try {
+      const res = await fetch(`/api/drugs/${procuringDrug.id}/procure`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      
+      const data = await res.json()
+      
+      if (res.ok) {
+        setProcureSuccess(data.message || 'Stock received successfully!')
+        fetchData()
+        setTimeout(() => {
+          setProcureDialogOpen(false)
+          setProcuringDrug(null)
+        }, 1500)
+      } else {
+        setProcureError(data.error || 'Failed to procure drug')
+      }
+    } catch (error) {
+      console.error('Failed to procure drug:', error)
+      setProcureError('Failed to procure drug')
+    } finally {
+      setProcureSubmitting(false)
+    }
+  }
+
+  // Delete handler
+  async function handleDelete(drugId: string) {
+    setDeletingId(drugId)
+    setDeleteError(null)
+    
+    try {
+      const res = await fetch(`/api/drugs/${drugId}`, {
+        method: 'DELETE',
+      })
+      
+      const data = await res.json()
+      
+      if (res.ok) {
+        fetchData()
+      } else {
+        setDeleteError(data.error || 'Failed to delete drug')
+      }
+    } catch (error) {
+      console.error('Failed to delete drug:', error)
+      setDeleteError('Failed to delete drug')
+    } finally {
+      setDeletingId(null)
     }
   }
 
@@ -155,6 +336,14 @@ export default function InventoryPage() {
             </div>
           </div>
         </header>
+
+        {deleteError && (
+          <div className="max-w-7xl mx-auto px-4 mt-4">
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+              {deleteError}
+            </div>
+          </div>
+        )}
 
       <main className="max-w-7xl mx-auto px-4 py-6">
         {/* Stats Cards */}
@@ -359,6 +548,7 @@ export default function InventoryPage() {
                         <TableHead>Price</TableHead>
                         <TableHead>Stock</TableHead>
                         <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -394,6 +584,71 @@ export default function InventoryPage() {
                                 <span className="ml-1">{status.label}</span>
                               </Badge>
                             </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                {canProcure && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => openProcureDialog(drug)}
+                                    title="Receive Stock"
+                                    className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                                  >
+                                    <PackagePlus className="h-4 w-4" />
+                                  </Button>
+                                )}
+                                {canEditDrug(drug) && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => openEditDialog(drug)}
+                                    title="Edit Drug"
+                                    className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                  </Button>
+                                )}
+                                {canDeleteDrug(drug) && (
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        title="Delete Drug"
+                                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>Delete Drug</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          Are you sure you want to delete <strong>{drug.name} {drug.strength}</strong>? 
+                                          This will deactivate the drug from your inventory.
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction
+                                          onClick={() => handleDelete(drug.id)}
+                                          className="bg-red-600 hover:bg-red-700"
+                                        >
+                                          {deletingId === drug.id ? (
+                                            <>
+                                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                              Deleting...
+                                            </>
+                                          ) : (
+                                            'Delete'
+                                          )}
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                )}
+                              </div>
+                            </TableCell>
                           </TableRow>
                         )
                       })}
@@ -420,6 +675,7 @@ export default function InventoryPage() {
                         <TableHead>Current Stock</TableHead>
                         <TableHead>Reorder Level</TableHead>
                         <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -443,6 +699,19 @@ export default function InventoryPage() {
                                 <span className="ml-1">{status.label}</span>
                               </Badge>
                             </TableCell>
+                            <TableCell className="text-right">
+                              {canProcure && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => openProcureDialog(drug)}
+                                  className="text-green-600 border-green-200 hover:bg-green-50"
+                                >
+                                  <PackagePlus className="h-4 w-4 mr-1" />
+                                  Receive Stock
+                                </Button>
+                              )}
+                            </TableCell>
                           </TableRow>
                         )
                       })}
@@ -454,6 +723,184 @@ export default function InventoryPage() {
           </TabsContent>
         </Tabs>
       </main>
+
+      {/* Edit Drug Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Edit Drug</DialogTitle>
+          </DialogHeader>
+          {editingDrug && (
+            <form onSubmit={handleEditSubmit} className="grid grid-cols-2 gap-4 mt-4">
+              {editError && (
+                <div className="col-span-2 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+                  {editError}
+                </div>
+              )}
+              {editSuccess && (
+                <div className="col-span-2 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg">
+                  {editSuccess}
+                </div>
+              )}
+              <div className="space-y-2">
+                <Label htmlFor="edit-ndc">NDC *</Label>
+                <Input id="edit-ndc" name="ndc" required defaultValue={editingDrug.ndc} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-name">Drug Name *</Label>
+                <Input id="edit-name" name="name" required defaultValue={editingDrug.name} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-genericName">Generic Name</Label>
+                <Input id="edit-genericName" name="genericName" defaultValue={editingDrug.genericName || ''} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-strength">Strength *</Label>
+                <Input id="edit-strength" name="strength" required defaultValue={editingDrug.strength} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-form">Form *</Label>
+                <select id="edit-form" name="form" required defaultValue={editingDrug.form} className="w-full border rounded-md p-2">
+                  <option value="Tablet">Tablet</option>
+                  <option value="Capsule">Capsule</option>
+                  <option value="Liquid">Liquid</option>
+                  <option value="Injection">Injection</option>
+                  <option value="Cream">Cream</option>
+                  <option value="Ointment">Ointment</option>
+                  <option value="Inhaler">Inhaler</option>
+                  <option value="Patch">Patch</option>
+                  <option value="Suppository">Suppository</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-manufacturer">Manufacturer</Label>
+                <Input id="edit-manufacturer" name="manufacturer" defaultValue={editingDrug.manufacturer || ''} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-price">Retail Price ($) *</Label>
+                <Input id="edit-price" name="price" type="number" step="0.01" required defaultValue={Number(editingDrug.price).toFixed(2)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-cost">Cost ($) *</Label>
+                <Input id="edit-cost" name="cost" type="number" step="0.01" required defaultValue={Number(editingDrug.cost).toFixed(2)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-stock">Stock *</Label>
+                <Input id="edit-stock" name="stock" type="number" required defaultValue={editingDrug.stock} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-reorderLevel">Reorder Level</Label>
+                <Input id="edit-reorderLevel" name="reorderLevel" type="number" defaultValue={editingDrug.reorderLevel} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-controlled">Controlled Substance</Label>
+                <select id="edit-controlled" name="controlled" defaultValue={editingDrug.controlled.toString()} className="w-full border rounded-md p-2">
+                  <option value="false">No</option>
+                  <option value="true">Yes</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-schedule">Schedule (if controlled)</Label>
+                <select id="edit-schedule" name="schedule" defaultValue={editingDrug.schedule || ''} className="w-full border rounded-md p-2">
+                  <option value="">N/A</option>
+                  <option value="II">Schedule II</option>
+                  <option value="III">Schedule III</option>
+                  <option value="IV">Schedule IV</option>
+                  <option value="V">Schedule V</option>
+                </select>
+              </div>
+              <div className="col-span-2 flex justify-end gap-2 mt-4">
+                <Button type="button" variant="outline" onClick={() => setEditDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={editSubmitting} className="bg-blue-600 hover:bg-blue-700">
+                  {editSubmitting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    'Save Changes'
+                  )}
+                </Button>
+              </div>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Procurement Dialog */}
+      <Dialog open={procureDialogOpen} onOpenChange={setProcureDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Receive Stock</DialogTitle>
+          </DialogHeader>
+          {procuringDrug && (
+            <>
+              <div className="bg-slate-50 rounded-lg p-4 mb-4">
+                <p className="font-medium text-slate-800">{procuringDrug.name} {procuringDrug.strength}</p>
+                <p className="text-sm text-slate-500">{procuringDrug.form} • NDC: {procuringDrug.ndc}</p>
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="text-sm text-slate-600">Current Stock:</span>
+                  <span className={`font-bold ${procuringDrug.stock === 0 ? 'text-red-600' : procuringDrug.stock <= procuringDrug.reorderLevel ? 'text-orange-600' : 'text-green-600'}`}>
+                    {procuringDrug.stock} units
+                  </span>
+                </div>
+              </div>
+              <form onSubmit={handleProcureSubmit} className="space-y-4">
+                {procureError && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+                    {procureError}
+                  </div>
+                )}
+                {procureSuccess && (
+                  <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg">
+                    {procureSuccess}
+                  </div>
+                )}
+                <div className="space-y-2">
+                  <Label htmlFor="procure-quantity">Quantity to Receive *</Label>
+                  <Input id="procure-quantity" name="quantity" type="number" required min="1" placeholder="Enter quantity" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="procure-supplier">Supplier Name *</Label>
+                  <Input id="procure-supplier" name="supplier" required placeholder="e.g., McKesson, Cardinal Health" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="procure-lotNumber">Lot Number</Label>
+                  <Input id="procure-lotNumber" name="lotNumber" placeholder="e.g., ABC123" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="procure-expiryDate">Expiry Date</Label>
+                  <Input id="procure-expiryDate" name="expiryDate" type="date" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="procure-costPerUnit">Cost Per Unit ($) *</Label>
+                  <Input id="procure-costPerUnit" name="costPerUnit" type="number" step="0.01" required placeholder="0.00" />
+                </div>
+                <div className="flex justify-end gap-2 pt-4">
+                  <Button type="button" variant="outline" onClick={() => setProcureDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={procureSubmitting} className="bg-green-600 hover:bg-green-700">
+                    {procureSubmitting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <PackagePlus className="h-4 w-4 mr-2" />
+                        Receive Stock
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </form>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
     </AuthGuard>
   )
