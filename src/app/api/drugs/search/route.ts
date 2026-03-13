@@ -11,7 +11,14 @@ export async function GET(request: Request) {
     }
     
     const drugs = await searchDrugsForPOS(query)
-    return NextResponse.json(drugs)
+    
+    // Convert Decimal fields to numbers for client-side use
+    const serializedDrugs = drugs.map(drug => ({
+      ...drug,
+      price: Number(drug.price),
+    }))
+    
+    return NextResponse.json(serializedDrugs)
   } catch (error) {
     console.error('Search failed:', error)
     return NextResponse.json({ error: 'Search failed' }, { status: 500 })

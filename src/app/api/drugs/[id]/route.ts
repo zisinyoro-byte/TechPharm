@@ -4,6 +4,15 @@ import { getAuthUser } from '@/lib/auth-api';
 import { canRead, canEdit, canDeleteRecord } from '@/lib/permissions';
 import { revalidatePath } from 'next/cache';
 
+// Helper to serialize drug data (convert Decimal to number)
+function serializeDrug(drug: any) {
+  return {
+    ...drug,
+    price: Number(drug.price),
+    cost: Number(drug.cost),
+  };
+}
+
 // GET - Get a single drug
 export async function GET(
   request: NextRequest,
@@ -52,7 +61,7 @@ export async function GET(
       );
     }
 
-    return NextResponse.json(drug);
+    return NextResponse.json(serializeDrug(drug));
   } catch (error) {
     console.error('Error fetching drug:', error);
     return NextResponse.json(
@@ -109,7 +118,7 @@ export async function PUT(
     });
 
     revalidatePath('/inventory');
-    return NextResponse.json(drug);
+    return NextResponse.json(serializeDrug(drug));
   } catch (error) {
     console.error('Error updating drug:', error);
     return NextResponse.json(
@@ -144,7 +153,7 @@ export async function DELETE(
     });
 
     revalidatePath('/inventory');
-    return NextResponse.json(drug);
+    return NextResponse.json(serializeDrug(drug));
   } catch (error) {
     console.error('Error deleting drug:', error);
     return NextResponse.json(

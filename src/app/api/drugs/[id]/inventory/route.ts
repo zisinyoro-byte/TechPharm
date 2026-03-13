@@ -4,6 +4,15 @@ import { getAuthUser } from '@/lib/auth-api'
 import { canWrite, isAdmin } from '@/lib/permissions'
 import { revalidatePath } from 'next/cache'
 
+// Helper to serialize drug data (convert Decimal to number)
+function serializeDrug(drug: any) {
+  return {
+    ...drug,
+    price: Number(drug.price),
+    cost: Number(drug.cost),
+  }
+}
+
 // POST - Adjust inventory (add/remove stock)
 export async function POST(
   request: NextRequest,
@@ -99,7 +108,7 @@ export async function POST(
     
     return NextResponse.json({
       success: true,
-      drug: result.updatedDrug,
+      drug: serializeDrug(result.updatedDrug),
       inventoryLog: result.inventoryLog,
       message: `Successfully received ${quantity} units. Stock updated from ${previousStock} to ${newStock}.`
     })

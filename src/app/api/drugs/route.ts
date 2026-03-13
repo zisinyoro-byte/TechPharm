@@ -4,6 +4,15 @@ import { getAuthUser } from '@/lib/auth-api'
 import { canRead, canWrite } from '@/lib/permissions'
 import { revalidatePath } from 'next/cache'
 
+// Helper to serialize drug data (convert Decimal to number)
+function serializeDrug(drug: any) {
+  return {
+    ...drug,
+    price: Number(drug.price),
+    cost: Number(drug.cost),
+  }
+}
+
 export async function GET(request: Request) {
   try {
     const user = await getAuthUser()
@@ -37,7 +46,7 @@ export async function GET(request: Request) {
           }
         }
       })
-      return NextResponse.json(allDrugs.filter(d => d.stock <= d.reorderLevel))
+      return NextResponse.json(allDrugs.filter(d => d.stock <= d.reorderLevel).map(serializeDrug))
     }
 
     const drugs = await db.drug.findMany({
@@ -50,7 +59,7 @@ export async function GET(request: Request) {
       }
     })
     
-    return NextResponse.json(drugs)
+    return NextResponse.json(drugs.map(serializeDrug))
   } catch (error) {
     console.error('Failed to fetch drugs:', error)
     return NextResponse.json({ error: 'Failed to fetch drugs' }, { status: 500 })
@@ -93,7 +102,7 @@ export async function POST(request: Request) {
     })
 
     revalidatePath('/inventory')
-    return NextResponse.json(drug)
+    return NextResponse.json(serializeDrug(drug))
   } catch (error) {
     console.error('Failed to create drug:', error)
     return NextResponse.json({ error: 'Failed to create drug' }, { status: 500 })
