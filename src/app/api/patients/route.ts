@@ -8,9 +8,13 @@ export async function GET(request: Request) {
   try {
     const user = await getAuthUser()
     
-    // Check read permission
+    // Check read permission - MARCH 2026 UPDATE
     if (!canRead(user, 'patient')) {
-      return NextResponse.json({ error: 'Forbidden: You do not have permission to view patients' }, { status: 403 })
+      return NextResponse.json({ 
+        error: 'Forbidden: You do not have permission to view patients',
+        version: '2026-03-13-v2',
+        authenticated: !!user
+      }, { status: 403 })
     }
 
     const { searchParams } = new URL(request.url)
