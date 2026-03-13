@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
 
@@ -11,7 +11,22 @@ interface CurrentUser {
   role: string
 }
 
+interface AuthContextType {
+  user: CurrentUser | null
+  loading: boolean
+}
+
+const AuthContext = createContext<AuthContextType>({ user: null, loading: true })
+
 export function useAuth() {
+  return useContext(AuthContext)
+}
+
+interface AuthProviderProps {
+  children: ReactNode
+}
+
+function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<CurrentUser | null>(null)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
@@ -41,21 +56,36 @@ export function useAuth() {
       const userData = await authRes.json()
       setUser(userData.user)
     } catch (error) {
+      console.error('Auth check failed:', error)
       router.push('/login')
     } finally {
       setLoading(false)
     }
   }
 
-  return { user, loading }
+  return (
+    <AuthContext.Provider value={{ user, loading }}>
+      {children}
+    </AuthContext.Provider>
+  )
 }
 
 interface AuthGuardProps {
-  children: React.ReactNode
+  children: ReactNode
   requireAdmin?: boolean
 }
 
 export function AuthGuard({ children, requireAdmin = false }: AuthGuardProps) {
+  return (
+    <AuthProvider>
+      <AuthGuardContent requireAdmin={requireAdmin}>
+        {children}
+      </AuthGuardContent>
+    </AuthProvider>
+  )
+}
+
+function AuthGuardContent({ children, requireAdmin }: AuthGuardProps) {
   const { user, loading } = useAuth()
   const router = useRouter()
 
@@ -86,3 +116,6 @@ export function AuthGuard({ children, requireAdmin = false }: AuthGuardProps) {
 
   return <>{children}</>
 }
+
+// Export AuthProvider for wrapping at app level if needed
+export { AuthProvider }

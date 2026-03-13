@@ -30,6 +30,23 @@ export async function POST(
     const { id } = await params
     const body = await request.json()
     
+    // Validate quantity
+    const quantity = Number(body.quantity)
+    if (isNaN(quantity) || quantity <= 0) {
+      return NextResponse.json(
+        { error: 'Quantity is required and must be a positive number' },
+        { status: 400 }
+      )
+    }
+
+    // Validate supplier for receiving stock
+    if (!body.supplier || typeof body.supplier !== 'string' || body.supplier.trim() === '') {
+      return NextResponse.json(
+        { error: 'Supplier name is required' },
+        { status: 400 }
+      )
+    }
+
     const drug = await db.drug.findUnique({
       where: { id },
     })
@@ -49,57 +66,42 @@ export async function POST(
     }
 
     const previousStock = drug.stock
-    const quantity = body.quantity // Can be positive (receive) or negative (dispense)
-    
-    if (!quantity || typeof quantity !== 'number') {
-      return NextResponse.json(
-        { error: 'Quantity is required and must be a number' },
-        { status: 400 }
-      )
-    }
-
     const newStock = previousStock + quantity
 
-    if (newStock < 0) {
-      return NextResponse.json(
-        { error: 'Insufficient stock' },
-        { status: 400 }
-      )
-    }
+    // Update drug stock and create inventory log in a transaction
+    const result = await db.$transaction(async (tx) => {
+      // Update drug stock
+      const updatedDrug = await tx.drug.update({
+        where: { id },
+        data: {
+          stock: newStock,
+        },
+      })
 
-    // Determine the action type based on quantity
-    const actionType = quantity > 0 ? 'RECEIVE' : body.type || 'ADJUSTMENT'
+      // Create inventory log
+      const inventoryLog = await tx.inventoryLog.create({
+        data: {
+          drugId: id,
+          type: 'RECEIVE',
+          quantity: quantity,
+          previousStock: previousStock,
+          newStock: newStock,
+          reason: `Received from ${body.supplier}${body.lotNumber ? ` (Lot: ${body.lotNumber})` : ''}`,
+          reference: body.lotNumber || body.reference || undefined,
+          userId: user.id,
+        },
+      })
 
-    // Update drug stock
-    const updatedDrug = await db.drug.update({
-      where: { id },
-      data: {
-        stock: newStock,
-      },
-    })
-
-    // Create inventory log
-    await db.inventoryLog.create({
-      data: {
-        drugId: id,
-        type: actionType,
-        quantity: Math.abs(quantity),
-        previousStock: previousStock,
-        newStock: newStock,
-        reason: body.reason || (quantity > 0 ? `Received from ${body.supplier || 'supplier'}` : 'Stock adjustment'),
-        reference: body.reference || body.lotNumber,
-        userId: user.id,
-      },
+      return { updatedDrug, inventoryLog }
     })
 
     revalidatePath('/inventory')
     
     return NextResponse.json({
       success: true,
-      drug: updatedDrug,
-      message: quantity > 0 
-        ? `Successfully received ${quantity} units. Stock updated from ${previousStock} to ${newStock}.`
-        : `Stock adjusted by ${quantity} units. New stock: ${newStock}.`
+      drug: result.updatedDrug,
+      inventoryLog: result.inventoryLog,
+      message: `Successfully received ${quantity} units. Stock updated from ${previousStock} to ${newStock}.`
     })
   } catch (error) {
     console.error('Error adjusting inventory:', error)
