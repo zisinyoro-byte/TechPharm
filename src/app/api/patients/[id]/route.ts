@@ -1,3 +1,4 @@
+// Build timestamp: 2026-03-13T06:30:00Z - Trigger deployment
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getAuthUser } from '@/lib/auth-api'
