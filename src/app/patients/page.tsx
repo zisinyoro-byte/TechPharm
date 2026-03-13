@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Search, Plus, User, Phone, Calendar, AlertTriangle, LogOut, Edit, Trash2, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { AuthGuard, useAuth } from '@/components/auth/auth-guard'
+import { AuthGuard } from '@/components/auth/auth-guard'
 
 interface Patient {
   id: string
@@ -34,8 +34,7 @@ interface Patient {
   prescriptions: { id: string; rxNumber: string }[]
 }
 
-export default function PatientsPage() {
-  const { user } = useAuth()
+function PatientsContent({ user }: { user: { id: string; name: string; email: string; role: string } }) {
   const router = useRouter()
   const [patients, setPatients] = useState<Patient[]>([])
   const [search, setSearch] = useState('')
@@ -56,11 +55,11 @@ export default function PatientsPage() {
 
   // Check permissions
   const canEditPatient = (patient: Patient) => {
-    return user?.role === 'ADMIN' || patient.createdById === user?.id
+    return user.role === 'ADMIN' || patient.createdById === user.id
   }
   
   const canDeletePatient = (patient: Patient) => {
-    return user?.role === 'ADMIN' || (patient.createdById === user?.id && (user?.role === 'PHARMACIST' || user?.role === 'TECHNICIAN'))
+    return user.role === 'ADMIN' || (patient.createdById === user.id && (user.role === 'PHARMACIST' || user.role === 'TECHNICIAN'))
   }
 
   async function handleLogout() {
@@ -212,48 +211,47 @@ export default function PatientsPage() {
   }
 
   return (
-    <AuthGuard>
-      <div className="min-h-screen bg-slate-50">
-        {/* Header */}
-        <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
-          <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Link href="/" className="flex items-center gap-2 text-slate-600 hover:text-blue-600">
-                <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center">
-                  <span className="text-white font-bold text-sm">Rx</span>
-                </div>
-                <span className="font-semibold">TechPharm</span>
-              </Link>
-              <span className="text-slate-300">|</span>
-              <h1 className="text-xl font-bold text-slate-800">Patients</h1>
-            </div>
-            <div className="flex items-center gap-4">
-              <nav className="flex items-center gap-4">
-                <Link href="/prescriptions/new" className="text-slate-600 hover:text-blue-600 transition">New Rx</Link>
-                <Link href="/inventory" className="text-slate-600 hover:text-blue-600 transition">Inventory</Link>
-                <Link href="/reports" className="text-slate-600 hover:text-blue-600 transition">Reports</Link>
-              </nav>
-              <div className="flex items-center gap-3 border-l pl-4">
-                <div className="text-right">
-                  <p className="text-sm font-medium text-slate-800">{user?.name}</p>
-                  <p className="text-xs text-slate-500">{user?.role}</p>
-                </div>
-                <Button variant="outline" size="sm" onClick={handleLogout}>
-                  <LogOut className="h-4 w-4 mr-1" />
-                  Logout
-                </Button>
+    <div className="min-h-screen bg-slate-50">
+      {/* Header */}
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
+        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Link href="/" className="flex items-center gap-2 text-slate-600 hover:text-blue-600">
+              <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center">
+                <span className="text-white font-bold text-sm">Rx</span>
               </div>
+              <span className="font-semibold">TechPharm</span>
+            </Link>
+            <span className="text-slate-300">|</span>
+            <h1 className="text-xl font-bold text-slate-800">Patients</h1>
+          </div>
+          <div className="flex items-center gap-4">
+            <nav className="flex items-center gap-4">
+              <Link href="/prescriptions/new" className="text-slate-600 hover:text-blue-600 transition">New Rx</Link>
+              <Link href="/inventory" className="text-slate-600 hover:text-blue-600 transition">Inventory</Link>
+              <Link href="/reports" className="text-slate-600 hover:text-blue-600 transition">Reports</Link>
+            </nav>
+            <div className="flex items-center gap-3 border-l pl-4">
+              <div className="text-right">
+                <p className="text-sm font-medium text-slate-800">{user.name}</p>
+                <p className="text-xs text-slate-500">{user.role}</p>
+              </div>
+              <Button variant="outline" size="sm" onClick={handleLogout}>
+                <LogOut className="h-4 w-4 mr-1" />
+                Logout
+              </Button>
             </div>
           </div>
-        </header>
+        </div>
+      </header>
 
-        {deleteError && (
-          <div className="max-w-7xl mx-auto px-4 mt-4">
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-              {deleteError}
-            </div>
+      {deleteError && (
+        <div className="max-w-7xl mx-auto px-4 mt-4">
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+            {deleteError}
           </div>
-        )}
+        </div>
+      )}
 
       <main className="max-w-7xl mx-auto px-4 py-6">
         {/* Search and Add */}
@@ -575,6 +573,13 @@ export default function PatientsPage() {
         </DialogContent>
       </Dialog>
     </div>
+  )
+}
+
+export default function PatientsPage() {
+  return (
+    <AuthGuard>
+      {(user) => <PatientsContent user={user} />}
     </AuthGuard>
   )
 }

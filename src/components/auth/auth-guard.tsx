@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
+import { useEffect, useState, ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
 
@@ -11,22 +11,12 @@ interface CurrentUser {
   role: string
 }
 
-interface AuthContextType {
-  user: CurrentUser | null
-  loading: boolean
+interface AuthGuardProps {
+  children: (user: CurrentUser) => ReactNode
+  requireAdmin?: boolean
 }
 
-const AuthContext = createContext<AuthContextType>({ user: null, loading: true })
-
-export function useAuth() {
-  return useContext(AuthContext)
-}
-
-interface AuthProviderProps {
-  children: ReactNode
-}
-
-function AuthProvider({ children }: AuthProviderProps) {
+export function AuthGuard({ children, requireAdmin = false }: AuthGuardProps) {
   const [user, setUser] = useState<CurrentUser | null>(null)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
@@ -63,38 +53,6 @@ function AuthProvider({ children }: AuthProviderProps) {
     }
   }
 
-  return (
-    <AuthContext.Provider value={{ user, loading }}>
-      {children}
-    </AuthContext.Provider>
-  )
-}
-
-interface AuthGuardProps {
-  children: ReactNode
-  requireAdmin?: boolean
-}
-
-export function AuthGuard({ children, requireAdmin = false }: AuthGuardProps) {
-  return (
-    <AuthProvider>
-      <AuthGuardContent requireAdmin={requireAdmin}>
-        {children}
-      </AuthGuardContent>
-    </AuthProvider>
-  )
-}
-
-function AuthGuardContent({ children, requireAdmin }: AuthGuardProps) {
-  const { user, loading } = useAuth()
-  const router = useRouter()
-
-  useEffect(() => {
-    if (!loading && user && requireAdmin && user.role !== 'ADMIN') {
-      router.push('/')
-    }
-  }, [user, loading, requireAdmin, router])
-
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
@@ -111,11 +69,16 @@ function AuthGuardContent({ children, requireAdmin }: AuthGuardProps) {
   }
 
   if (requireAdmin && user.role !== 'ADMIN') {
+    router.push('/')
     return null
   }
 
-  return <>{children}</>
+  return <>{children(user)}</>
 }
 
-// Export AuthProvider for wrapping at app level if needed
-export { AuthProvider }
+// Export a hook for getting current user (for use in components that are already inside AuthGuard)
+export function useAuth() {
+  // This is now deprecated - use the render prop pattern instead
+  console.warn('useAuth is deprecated. Use AuthGuard render prop instead.')
+  return { user: null, loading: false }
+}
