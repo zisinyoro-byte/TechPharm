@@ -1,0 +1,469 @@
+// This is your Prisma schema file for PharmaFlow PMS
+// Pharmacy Management System - Neon PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl  = env("DIRECT_URL")
+}
+
+// User Management (Pharmacists, Technicians, Admin)
+model User {
+  id            String         @id @default(cuid())
+  email         String         @unique
+  password      String
+  name          String
+  role          Role           @default(PHARMACIST)
+  avatar        String?
+  phone         String?
+  active        Boolean        @default(true)
+  lastLogin     DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  sessions      Session[]
+  sales         Sale[]
+  prescriptions Prescription[]
+  patients      Patient[]      @relation("UserPatients")
+  drugs         Drug[]         @relation("UserDrugs")
+  prescribers   Prescriber[]   @relation("UserPrescribers")
+  inventoryLots InventoryLot[] @relation("UserInventoryLots")
+  cashTransactions CashTransaction[]
+  dailyCashOpened DailyCashRecord[] @relation("UserCashOpened")
+  dailyCashClosed DailyCashRecord[] @relation("UserCashClosed")
+}
+
+enum Role {
+  ADMIN
+  PHARMACIST
+  TECHNICIAN
+  CASHIER
+}
+
+// Session for authentication
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+// Patient Demographics
+model Patient {
+  id            String         @id @default(cuid())
+  firstName     String
+  lastName      String
+  dob           DateTime
+  gender        String?
+  phone         String?
+  email         String?
+  address       String?
+  city          String?
+  state         String?
+  zip           String?
+  allergies     String[]
+  insuranceId   String?
+  insuranceName String?
+  notes         String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  createdById   String?
+  createdBy     User?          @relation("UserPatients", fields: [createdById], references: [id])
+  prescriptions Prescription[]
+  sales         Sale[]
+}
+
+// Drug Catalog (Formulary)
+model Drug {
+  id            String         @id @default(cuid())
+  ndc           String         @unique // National Drug Code
+  name          String
+  genericName   String?
+  strength      String
+  form          String // Tablet, Capsule, Liquid, Injection, etc.
+  manufacturer  String?
+  price         Decimal        @default(0)
+  cost          Decimal        @default(0) // Average cost (for display)
+  stock         Int            @default(0)
+  reorderLevel  Int            @default(10)
+  maxStock      Int            @default(100)
+  controlled    Boolean        @default(false)
+  schedule      String? // II, III, IV, V for controlled substances
+  barcode       String?
+  vatEligible   Boolean        @default(false) // Whether VAT applies to this drug
+  isActive      Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  createdById   String?
+  createdBy     User?          @relation("UserDrugs", fields: [createdById], references: [id])
+  prescriptions Prescription[]
+  inventoryLogs InventoryLog[]
+  saleItems     SaleItem[]
+  inventoryLots InventoryLot[]
+  movementStats DrugMovementStats?
+}
+
+// Prescriber (Doctors, NPs, PAs)
+model Prescriber {
+  id            String         @id @default(cuid())
+  npi           String         @unique // National Provider Identifier
+  firstName     String
+  lastName      String
+  degree        String? // MD, DO, NP, PA, etc.
+  specialty     String?
+  phone         String?
+  fax           String?
+  email         String?
+  address       String?
+  city          String?
+  state         String?
+  zip           String?
+  deaNumber     String?
+  active        Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  createdById   String?
+  createdBy     User?          @relation("UserPrescribers", fields: [createdById], references: [id])
+  prescriptions Prescription[]
+}
+
+// Prescription & Workflow (The Core)
+model Prescription {
+  id               String    @id @default(cuid())
+  rxNumber         String    @unique
+  status           RxStatus  @default(QUEUE)
+  quantity         Decimal
+  daysSupply       Int       @default(30)
+  directions       String
+  refills          Int       @default(0)
+  refillsRemaining Int       @default(0)
+  filledDate       DateTime?
+  dispensed        Boolean   @default(false)
+  copay            Decimal   @default(0)
+  priceCharged     Decimal   @default(0)
+  notes            String?
+  dursChecked      Boolean   @default(false)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  patientId    String
+  patient      Patient     @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  drugId       String
+  drug         Drug        @relation(fields: [drugId], references: [id])
+  prescriberId String?
+  prescriber   Prescriber? @relation(fields: [prescriberId], references: [id])
+  filledById   String?
+  filledBy     User?       @relation(fields: [filledById], references: [id])
+  verifiedById String?
+}
+
+enum RxStatus {
+  QUEUE // New prescription waiting to be processed
+  ENTRY // Data entry in progress
+  FILL // Ready to fill/dispense
+  VERIFY // Waiting for pharmacist verification
+  COMPLETE // Filled and verified
+  CANCELLED // Cancelled
+  ON_HOLD // On hold for some reason
+}
+
+// POS Sales
+model Sale {
+  id            String        @id @default(cuid())
+  invoiceNumber String        @unique
+  subtotal      Decimal       @default(0)
+  tax           Decimal       @default(0)
+  discount      Decimal       @default(0)
+  total         Decimal       @default(0)
+  paymentMethod PaymentMethod
+  paymentStatus PaymentStatus @default(PENDING)
+  amountPaid    Decimal       @default(0)
+  change        Decimal       @default(0)
+  notes         String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  // FIFO Cost tracking
+  costOfGoodsSold Decimal    @default(0) // Total cost of items sold (FIFO)
+  grossProfit     Decimal    @default(0) // total - costOfGoodsSold
+
+  patientId String?
+  patient   Patient?   @relation(fields: [patientId], references: [id])
+  cashierId String
+  cashier   User       @relation(fields: [cashierId], references: [id])
+  items     SaleItem[]
+  cashTransactions CashTransaction[]
+}
+
+model SaleItem {
+  id        String   @id @default(cuid())
+  quantity  Int
+  unitPrice Decimal
+  unitCost  Decimal  @default(0) // FIFO cost per unit
+  totalCost Decimal  @default(0) // quantity * unitCost
+  discount  Decimal  @default(0)
+  subtotal  Decimal
+  createdAt DateTime @default(now())
+
+  saleId         String
+  sale           Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  drugId         String
+  drug           Drug    @relation(fields: [drugId], references: [id])
+  prescriptionId String?
+  lotUsages      InventoryLotUsage[]
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  INSURANCE
+  MIXED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  REFUNDED
+  PARTIAL
+}
+
+// Inventory Log for tracking stock movements
+model InventoryLog {
+  id            String          @id @default(cuid())
+  type          InventoryAction
+  quantity      Int
+  previousStock Int
+  newStock      Int
+  reason        String?
+  reference     String? // PO number, RX number, etc.
+  createdAt     DateTime        @default(now())
+
+  drugId String
+  drug   Drug    @relation(fields: [drugId], references: [id])
+  userId String?
+}
+
+enum InventoryAction {
+  RECEIVE // Stock received from supplier
+  DISPENSE // Dispensed to patient
+  RETURN // Returned to supplier
+  ADJUSTMENT // Manual adjustment
+  EXPIRED // Expired stock removed
+  DAMAGE // Damaged stock removed
+  SALE // Sold via POS
+}
+
+// Daily Stats for Reporting
+model DailyStat {
+  id          String   @id @default(cuid())
+  date        DateTime @unique
+  rxCount     Int      @default(0)
+  newPatients Int      @default(0)
+  revenue     Decimal  @default(0)
+  salesCount  Int      @default(0)
+  createdAt   DateTime @default(now())
+}
+
+// Global App Settings
+model Setting {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       String
+  description String?
+  category    String   @default("general") // general, tax, pos, etc.
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// FIFO Inventory Lots - Track each batch of inventory received
+model InventoryLot {
+  id              String             @id @default(cuid())
+  drugId          String
+  drug            Drug               @relation(fields: [drugId], references: [id], onDelete: Cascade)
+  lotNumber       String?            // Supplier lot number
+  quantityReceived Int               // Original quantity received
+  quantityRemaining Int              // Quantity still in stock
+  unitCost        Decimal            // Cost per unit for this lot
+  expiryDate      DateTime?          // Expiration date if applicable
+  receivedDate    DateTime           @default(now())
+  receivedById    String?
+  receivedBy      User?              @relation("UserInventoryLots", fields: [receivedById], references: [id])
+  reference       String?            // PO number, invoice number, etc.
+  notes           String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  
+  lotUsages       InventoryLotUsage[]
+  
+  @@index([drugId, receivedDate]) // For FIFO queries
+}
+
+// Track usage of inventory lots (for FIFO costing)
+model InventoryLotUsage {
+  id              String   @id @default(cuid())
+  lotId           String
+  lot             InventoryLot @relation(fields: [lotId], references: [id], onDelete: Cascade)
+  quantityUsed    Int
+  unitCost        Decimal  // Snapshot of cost at time of use
+  totalCost       Decimal  // quantityUsed * unitCost
+  usedAt          DateTime @default(now())
+  
+  saleItemId      String?  // If used in a sale
+  saleItem        SaleItem? @relation(fields: [saleItemId], references: [id])
+  prescriptionId  String?  // If used in a prescription
+  
+  @@index([lotId])
+  @@index([usedAt])
+}
+
+// Daily Cash Record - Start/End of Day
+model DailyCashRecord {
+  id              String   @id @default(cuid())
+  date            DateTime @unique
+  status          CashRecordStatus @default(OPEN)
+  
+  // Start of day
+  openingCash     Decimal  @default(0)
+  openedAt        DateTime?
+  openedById      String?
+  openedBy        User?    @relation("UserCashOpened", fields: [openedById], references: [id])
+  openingNotes    String?
+  
+  // End of day
+  expectedCash    Decimal  @default(0) // Calculated from transactions
+  actualCash      Decimal? // Counted cash
+  cashVariance    Decimal  @default(0) // actualCash - expectedCash
+  closedAt        DateTime?
+  closedById      String?
+  closedBy        User?    @relation("UserCashClosed", fields: [closedById], references: [id])
+  closingNotes    String?
+  
+  // Summary stats
+  totalSales      Int      @default(0)
+  cashSales       Decimal  @default(0)
+  cardSales       Decimal  @default(0)
+  insuranceSales  Decimal  @default(0)
+  totalRevenue    Decimal  @default(0)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  cashTransactions CashTransaction[]
+  
+  @@index([date])
+  @@index([status])
+}
+
+enum CashRecordStatus {
+  OPEN
+  CLOSED
+}
+
+// Cash Transactions for cash flow tracking
+model CashTransaction {
+  id              String   @id @default(cuid())
+  dailyCashId     String
+  dailyCash       DailyCashRecord @relation(fields: [dailyCashId], references: [id], onDelete: Cascade)
+  
+  type            CashTransactionType
+  amount          Decimal
+  description     String?
+  reference       String?  // Invoice number, receipt number, etc.
+  
+  category        String?  // sales, refund, expense, deposit, withdrawal, etc.
+  saleId          String?  // Link to sale if applicable
+  sale            Sale?    @relation(fields: [saleId], references: [id])
+  
+  recordedById    String
+  recordedBy      User     @relation(fields: [recordedById], references: [id])
+  recordedAt      DateTime @default(now())
+  
+  createdAt       DateTime @default(now())
+  
+  @@index([dailyCashId])
+  @@index([type])
+  @@index([recordedAt])
+}
+
+enum CashTransactionType {
+  SALE_CASH       // Cash received from sale
+  SALE_CARD       // Card payment (for tracking)
+  SALE_INSURANCE  // Insurance payment
+  REFUND          // Refund issued
+  CASH_IN         // Other cash in (petty cash deposit, etc.)
+  CASH_OUT        // Cash out (petty cash, expenses, etc.)
+  FLOAT_ADD       // Add to cash float
+  FLOAT_REMOVE    // Remove from cash float
+}
+
+// Drug Movement Tracking for Fast/Slow Mover Analysis
+model DrugMovementStats {
+  id              String   @id @default(cuid())
+  drugId          String   @unique
+  drug            Drug     @relation(fields: [drugId], references: [id], onDelete: Cascade)
+  
+  // Daily movement
+  dailySalesCount Int      @default(0)
+  dailyQuantitySold Int    @default(0)
+  dailyRevenue    Decimal  @default(0)
+  
+  // Weekly movement
+  weeklySalesCount Int     @default(0)
+  weeklyQuantitySold Int   @default(0)
+  weeklyRevenue   Decimal  @default(0)
+  
+  // Monthly movement
+  monthlySalesCount Int    @default(0)
+  monthlyQuantitySold Int  @default(0)
+  monthlyRevenue  Decimal  @default(0)
+  
+  // Movement classification
+  movementCategory String? @default("NORMAL") // FAST, NORMAL, SLOW
+  turnoverRate    Decimal? // How fast inventory turns over
+  
+  lastSaleDate    DateTime?
+  lastRestockDate DateTime?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@index([movementCategory])
+}
+
+// Financial Summary for reporting
+model FinancialSummary {
+  id              String   @id @default(cuid())
+  date            DateTime @unique
+  
+  // Revenue breakdown
+  totalRevenue    Decimal  @default(0)
+  cashRevenue     Decimal  @default(0)
+  cardRevenue     Decimal  @default(0)
+  insuranceRevenue Decimal @default(0)
+  otherRevenue    Decimal  @default(0)
+  
+  // Cost breakdown
+  costOfGoodsSold Decimal  @default(0)
+  grossProfit     Decimal  @default(0)
+  
+  // Expenses
+  totalExpenses   Decimal  @default(0)
+  operatingExpenses Decimal @default(0)
+  
+  // Net
+  netProfit       Decimal  @default(0)
+  
+  // Prescription stats
+  prescriptionsFilled Int  @default(0)
+  newPatients     Int      @default(0)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@index([date])
+}
