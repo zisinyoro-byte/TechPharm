@@ -3,6 +3,9 @@ import { db } from '@/lib/db'
 import { getAuthUser } from '@/lib/auth-api'
 import { startOfDay, endOfDay, subDays, subMonths, startOfMonth, endOfMonth, format } from 'date-fns'
 
+// Module-level now for use in functions
+const now = new Date()
+
 // GET - Comprehensive inventory reports
 export async function GET(request: Request) {
   try {
@@ -553,5 +556,3 @@ async function getMovementAnalysis(startDate: Date, endDate: Date) {
     topMovedItems: topMovedDetails,
   })
 }
-
-const now = new Date()
