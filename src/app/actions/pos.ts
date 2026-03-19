@@ -200,6 +200,15 @@ export async function createSale(data: {
         console.warn('FIFO consumption failed, continuing with sale:', error)
       }
 
+      // Decrement drug stock directly (this is the main stock update)
+      await tx.drug.update({
+        where: { id: item.drugId },
+        data: {
+          stock: { decrement: item.quantity },
+          updatedAt: new Date(),
+        },
+      })
+
       // Create inventory log
       try {
         await tx.inventoryLog.create({
